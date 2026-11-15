@@ -1,0 +1,9 @@
+post_install() {
+  echo ':: dms-shell-plugin-dankmail has been renamed to dms-shell-plugin-dux-mail, which is now installed.'
+  echo ':: Your settings, cache and keyring entries are kept.'
+  echo ':: This transitional package can be removed: pacman -R dms-shell-plugin-dankmail'
+}
+
+post_upgrade() {
+  post_install
+}

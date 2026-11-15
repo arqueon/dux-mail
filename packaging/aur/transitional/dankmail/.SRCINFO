@@ -1,0 +1,11 @@
+pkgbase = dankmail
+	pkgdesc = Transitional package — DankMail is now dux-mail (safe to remove)
+	pkgver = 0.5.1
+	pkgrel = 1
+	url = https://github.com/arqueon/dux-mail
+	install = dankmail.install
+	arch = any
+	license = GPL-3.0-or-later
+	depends = dux-mail
+
+pkgname = dankmail

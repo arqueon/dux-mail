@@ -38,3 +38,4 @@ the source. Locales are narrowed to their base language, so `pt_BR` and
 - Go core + i18n + JS/plugin tests: `make -C core build|vet|test`.
 - Headless MCP server: `dmail mcp [--mode full|draft|draft-strict|readonly]`.
 - The AUR release flow updates `packaging/aur/{dux-mail,dux-mail-git,dms-shell-plugin-dux-mail}` and tags `vX.Y.Z`.
+- `packaging/aur/transitional/` holds the empty `dankmail*` packages (published 2026-11-14) that pull users onto `dux-mail*`; AUR helpers ignore `replaces=`. Keep the versioned `conflicts` (`dankmail<0.5.1`, `dankmail-git<r999`) in the new recipes until those names are merged away on AUR.

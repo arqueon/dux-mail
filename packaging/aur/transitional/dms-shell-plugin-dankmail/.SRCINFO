@@ -1,0 +1,11 @@
+pkgbase = dms-shell-plugin-dankmail
+	pkgdesc = Transitional package — Dankmail Unread is now dms-shell-plugin-dux-mail (safe to remove)
+	pkgver = 0.5.1
+	pkgrel = 1
+	url = https://github.com/arqueon/dux-mail
+	install = dms-shell-plugin-dankmail.install
+	arch = any
+	license = GPL-3.0-or-later
+	depends = dms-shell-plugin-dux-mail
+
+pkgname = dms-shell-plugin-dankmail
