@@ -16,6 +16,8 @@ Rectangle {
     property alias bottomPadding: input.bottomPadding
 
     signal accepted
+    // Raw key events of the inner field; set event.accepted = true to consume.
+    signal keyPressed(var event)
 
     function forceActiveFocus() {
         input.forceActiveFocus();
@@ -59,6 +61,7 @@ Rectangle {
             selectionColor: Theme.primarySelected
             selectedTextColor: Theme.surfaceText
             onAccepted: root.accepted()
+            Keys.onPressed: event => root.keyPressed(event)
             Keys.onLeftPressed: event => {
                 event.accepted = root.ignoreLeftRightKeys;
             }

@@ -517,6 +517,18 @@ FloatingWindow {
                         }
                     }
                 }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: Theme.outlineLight
+                    visible: DankMailService.labelsAvailable
+                }
+
+                // ---- labels -------------------------------------------
+                LabelSettings {
+                    Layout.fillWidth: true
+                }
             }
         }
     }

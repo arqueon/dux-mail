@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -184,6 +185,8 @@ func (e *Executor) call(ctx context.Context, ops []Op) error {
 		return prov.Unspam(ctx, ids)
 	case OpSpam:
 		return prov.Spam(ctx, ids)
+	case OpLabel:
+		return e.callLabels(ctx, prov, ops)
 	case OpSendReply:
 		if ops[0].Payload.Reply == nil || len(ops[0].ThreadIDs) == 0 {
 			return errdefs.Wrap(errdefs.KindPermanent, errBadPayload)
@@ -197,6 +200,43 @@ func (e *Executor) call(ctx context.Context, ops []Op) error {
 	default:
 		return errdefs.Wrap(errdefs.KindPermanent, errBadPayload)
 	}
+}
+
+// callLabels applies a coalesced batch of label ops. Ops with the same
+// add/remove sets share one provider call; the call is idempotent, so a retry
+// after a partial failure is safe. A provider without CapLabels is a
+// programming error (the IPC layer checks the capability up front) and fails
+// permanently instead of degrading.
+func (e *Executor) callLabels(ctx context.Context, prov provider.Provider, ops []Op) error {
+	mgr, ok := prov.(provider.LabelManager)
+	if !ok || !prov.Capabilities().Has(provider.CapLabels) {
+		return errdefs.Wrap(errdefs.KindPermanent, errNoLabels)
+	}
+	type group struct {
+		add, remove []string
+		ids         []string
+	}
+	var groups []*group
+	byKey := map[string]*group{}
+	for _, op := range ops {
+		if op.Payload.Labels == nil {
+			return errdefs.Wrap(errdefs.KindPermanent, errBadPayload)
+		}
+		key := strings.Join(op.Payload.Labels.Add, "\x00") + "\x01" + strings.Join(op.Payload.Labels.Remove, "\x00")
+		g, ok := byKey[key]
+		if !ok {
+			g = &group{add: op.Payload.Labels.Add, remove: op.Payload.Labels.Remove}
+			byKey[key] = g
+			groups = append(groups, g)
+		}
+		g.ids = append(g.ids, op.ThreadIDs...)
+	}
+	for _, g := range groups {
+		if err := mgr.ModifyLabels(ctx, mergeThreadIDs([]Op{{ThreadIDs: g.ids}}), g.add, g.remove); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // handleFailure applies the retry policy keyed on the error kind.
@@ -239,8 +279,10 @@ func (e *Executor) handleFailure(ctx context.Context, ops []Op, ids []int, callE
 		// Permanent (or retries exhausted): revert optimistic state,
 		// mark failed, tell the user.
 		err := withTx(ctx, e.db, func(tx *ent.Tx) error {
-			for _, op := range ops {
-				if err := revertLocal(ctx, tx, op); err != nil {
+			// Newest first: each op's snapshot is the state after the
+			// previous one, so unwinding in reverse lands on the oldest.
+			for i := len(ops) - 1; i >= 0; i-- {
+				if err := revertLocal(ctx, tx, ops[i]); err != nil {
 					return err
 				}
 			}

@@ -18,7 +18,8 @@
     "Archived": "Arquivados",
     "Spam": "Spam",
     "Sent": "Enviados",
-    "Drafts": "Rascunhos"
+    "Drafts": "Rascunhos",
+    "Labels": "Marcadores"
   },
   "drafts": {
     "(no recipients)": "(sem destinatários)"
@@ -41,7 +42,8 @@
     "Add a Gmail account": "Adicionar uma conta do Gmail",
     "No local results — search the full history or the web": "Nenhum resultado local — busque no histórico completo ou na web",
     "No sent mail": "Nenhum e-mail enviado",
-    "No saved drafts": "Nenhum rascunho salvo"
+    "No saved drafts": "Nenhum rascunho salvo",
+    "No mail with this label": "Nenhum e-mail com este marcador"
   },
   "search": {
     "Search mail…": "Buscar e-mails…",
@@ -57,7 +59,12 @@
     "Could not load sent mail. Try again later.": "Não foi possível carregar os enviados. Tente mais tarde.",
     "Loading sent mail…": "Carregando enviados…",
     "Retry sent mail": "Tentar enviados novamente",
-    "Load older sent mail": "Carregar enviados anteriores"
+    "Load older sent mail": "Carregar enviados anteriores",
+    "Loading labeled mail…": "Carregando e-mails com marcador…",
+    "Retry labeled mail": "Tentar de novo os e-mails com marcador",
+    "Load older labeled mail": "Carregar e-mails antigos com marcador",
+    "Could not load mail with this label. Try again later.": "Não foi possível carregar os e-mails com este marcador. Tente novamente mais tarde.",
+    "This account only supports cached mail with this label.": "Esta conta só oferece os e-mails com este marcador que já estão em cache."
   },
   "account wizard title": {
     "Add account": "Adicionar conta"
@@ -139,7 +146,8 @@
     "Notification buttons": "Botões de notificação",
     "Chained actions": "Ações encadeadas",
     "Sync interval": "Intervalo de sincronização",
-    "Accounts": "Contas"
+    "Accounts": "Contas",
+    "Manage labels": "Gerenciar marcadores"
   },
   "sync interval": {
     "30 seconds": "30 segundos",
@@ -163,7 +171,8 @@
     "Sending a reply marks the thread read": "Enviar uma resposta marca a conversa como lida",
     "Trashing also marks read": "Enviar para a lixeira também marca como lida",
     "Starring moves the thread back to the inbox": "Dar estrela devolve a conversa para a caixa de entrada",
-    "How often each account is polled for new mail. Shorter is snappier; all options stay well within provider rate limits.": "De quanto em quanto tempo cada conta é consultada em busca de e-mails novos. Mais curto é mais ágil; todas as opções ficam bem dentro dos limites do provedor."
+    "How often each account is polled for new mail. Shorter is snappier; all options stay well within provider rate limits.": "De quanto em quanto tempo cada conta é consultada em busca de e-mails novos. Mais curto é mais ágil; todas as opções ficam bem dentro dos limites do provedor.",
+    "Labels belong to each account. Labels marked “Always sync” stay in sync with the provider on every sync.": "Os marcadores pertencem a cada conta. Os marcados com “Sempre sincronizar” permanecem sincronizados com o provedor a cada sincronização."
   },
   "compose": {
     "New message": "Nova mensagem",
@@ -278,5 +287,32 @@
   },
   "operation error": {
     "Could not apply the action: %1": "Não foi possível aplicar a ação: %1"
+  },
+  "label picker": {
+    "Labels": "Marcadores",
+    "1 thread": "1 conversa",
+    "%1 threads": "%1 conversas",
+    "Search or create a label…": "Buscar ou criar um marcador…",
+    "Create label “%1”": "Criar o marcador “%1”",
+    "No labels yet": "Ainda não há marcadores",
+    "Apply": "Aplicar",
+    "Could not create the label: %1": "Não foi possível criar o marcador: %1",
+    "↑↓ move · Tab, Space or click toggles · Enter applies · Esc cancels": "↑↓ mover · Tab, Espaço ou clique alterna · Enter aplica · Esc cancela"
+  },
+  "label panel": {
+    "No labels yet": "Ainda não há marcadores"
+  },
+  "label settings": {
+    "1 label": "1 marcador",
+    "%1 labels": "%1 marcadores",
+    "New label": "Novo marcador",
+    "Always sync": "Sempre sincronizar",
+    "Label name (use / to nest)": "Nome do marcador (use / para aninhar)",
+    "Renaming does not rename the labels nested under it.": "Renomear não renomeia os marcadores aninhados abaixo dele.",
+    "Create": "Criar",
+    "Save": "Salvar",
+    "Delete label": "Excluir marcador",
+    "Delete the label “%1”?": "Excluir o marcador “%1”?",
+    "The label is removed from every thread that has it. Your mail is NOT deleted. This cannot be undone.": "O marcador é removido de todas as conversas que o têm. Seus e-mails NÃO são excluídos. Esta ação não pode ser desfeita."
   }
 }

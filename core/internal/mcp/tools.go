@@ -329,7 +329,7 @@ func (s *Server) allTools() []toolSpec {
 		}
 	}
 
-	return []toolSpec{
+	tools := []toolSpec{
 		{
 			Name:        "mail_status",
 			Description: "Return Dux Mail daemon status, active MCP permission mode, total unread count, DND state, operation queue counts, and per-account health.",
@@ -391,7 +391,7 @@ func (s *Server) allTools() []toolSpec {
 		},
 		{
 			Name:        "list_threads",
-			Description: "List cached mail threads filtered by mailbox view (inbox, unread, starred, snoozed, archived, sent, spam, all), account, or local search query.",
+			Description: "List cached mail threads filtered by mailbox view (inbox, unread, starred, snoozed, archived, sent, spam, all), account, label, or local search query. Each thread carries its label names in labelNames.",
 			InputSchema: schemaObj(map[string]any{
 				"view": map[string]any{
 					"type":        "string",
@@ -400,6 +400,7 @@ func (s *Server) allTools() []toolSpec {
 				},
 				"account":         propStr("Optional account email address or UUID."),
 				"query":           propStr("Optional local SQLite search query across subject, sender, snippet, and body."),
+				"label":           propStr("Optional label name or label ID (see list_labels): only threads carrying it. Without 'view' this searches every view, not just the inbox."),
 				"limit":           propInt("Maximum threads to return (default 25, max 100)."),
 				"offset":          propInt("Pagination offset (default 0)."),
 				"fetchRemotePage": propBool("When view is 'archived' or 'sent', pull one older page from the remote server first."),
@@ -420,6 +421,9 @@ func (s *Server) allTools() []toolSpec {
 				view := strings.ToLower(strArg(args, "view"))
 				if view == "" {
 					view = "inbox"
+					if strArg(args, "label") != "" {
+						view = "all"
+					}
 				}
 				limit := intArg(args, "limit", 25)
 				if limit <= 0 {
@@ -474,10 +478,15 @@ func (s *Server) allTools() []toolSpec {
 					return nil, fmt.Errorf("invalid view %q", view)
 				}
 
+				if err := s.applyLabelFilter(ctx, strArg(args, "label"), acctID, params); err != nil {
+					return nil, err
+				}
+
 				var threads []models.ThreadSummary
 				if err := s.callJSON(ctx, "threads.list", params, &threads); err != nil {
 					return nil, err
 				}
+				names := s.labelNamer(ctx)
 				items := make([]map[string]any, 0, len(threads))
 				for _, t := range threads {
 					items = append(items, map[string]any{
@@ -493,6 +502,7 @@ func (s *Server) allTools() []toolSpec {
 						"starred":       t.Starred,
 						"inInbox":       t.InInbox,
 						"labels":        t.Labels,
+						"labelNames":    names(t.AccountID, t.Labels),
 						"snoozedUntil":  t.SnoozedUntil,
 					})
 				}
@@ -511,6 +521,7 @@ func (s *Server) allTools() []toolSpec {
 				"query":   propStr("Search query (supports keywords and operators like from:, to:, subject:, since:YYYY-MM-DD)."),
 				"account": propStr("Optional account email address or UUID."),
 				"remote":  propBool("Also sweep full server mailbox history and backfill hits into local cache (default true)."),
+				"label":   propStr("Optional label name or label ID (see list_labels): only hits carrying it."),
 				"limit":   propInt("Maximum matching threads to return (default 25, max 100)."),
 			}, "query"),
 			Annotations: syncAnn,
@@ -558,6 +569,9 @@ func (s *Server) allTools() []toolSpec {
 				if acctID != "" {
 					lp["account"] = acctID
 				}
+				if err := s.applyLabelFilter(ctx, strArg(args, "label"), acctID, lp); err != nil {
+					return nil, err
+				}
 				var threads []models.ThreadSummary
 				if err := s.callJSON(ctx, "threads.list", lp, &threads); err != nil {
 					return nil, err
@@ -583,6 +597,7 @@ func (s *Server) allTools() []toolSpec {
 					}
 				}
 
+				names := s.labelNamer(ctx)
 				items := make([]map[string]any, 0, len(threads))
 				for _, t := range threads {
 					items = append(items, map[string]any{
@@ -598,6 +613,7 @@ func (s *Server) allTools() []toolSpec {
 						"starred":       t.Starred,
 						"inInbox":       t.InInbox,
 						"labels":        t.Labels,
+						"labelNames":    names(t.AccountID, t.Labels),
 					})
 				}
 				out := map[string]any{
@@ -1156,4 +1172,5 @@ func (s *Server) allTools() []toolSpec {
 		},
 		simpleThreadTool("trash_threads", "Move threads to the provider Trash folder (reversible; Dux Mail never permanently deletes messages).", "ops.trash", ModeFull, sendAnn),
 	}
+	return append(tools, s.labelTools()...)
 }

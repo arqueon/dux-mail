@@ -42,6 +42,9 @@ const (
 	CapUnspam
 	// CapSpam: move threads to the spam folder.
 	CapSpam
+	// CapLabels: user labels can be listed, managed and applied to threads
+	// (see LabelManager and LabelPager). Gmail only.
+	CapLabels
 )
 
 // Has reports whether all bits in want are set.
@@ -233,6 +236,46 @@ type RemoteSearcher interface {
 // returned changes are backfill and must never produce new-mail notifications.
 type ArchivedPager interface {
 	ArchivedPage(ctx context.Context, pageToken string) (Changes, string, error)
+}
+
+// Label is one user label of an account. Identity is the provider-native ID;
+// the name may contain "/" (the UI renders it as nesting).
+type Label struct {
+	ID        string // provider-native
+	Name      string
+	ColorBg   string // "#rrggbb" or ""
+	ColorText string // "#rrggbb" or ""
+}
+
+// LabelColor is one allowed (background, text) pair.
+type LabelColor struct {
+	Background string `json:"background"`
+	Text       string `json:"text"`
+}
+
+// LabelManager is an optional interface (assert with a type switch, never
+// assume) implemented by providers that declare CapLabels.
+type LabelManager interface {
+	// ListLabels returns the user labels only (never system labels).
+	ListLabels(ctx context.Context) ([]Label, error)
+	CreateLabel(ctx context.Context, l Label) (Label, error)
+	// UpdateLabel patches by l.ID; empty fields keep their value.
+	UpdateLabel(ctx context.Context, l Label) (Label, error)
+	// DeleteLabel removes the label from every thread. It never deletes
+	// mail. A label that no longer exists is not an error.
+	DeleteLabel(ctx context.Context, labelID string) error
+	// ModifyLabels adds/removes user labels on threads. It refuses system
+	// label IDs.
+	ModifyLabels(ctx context.Context, threadIDs []string, add, remove []string) error
+	// LabelPalette lists the allowed (background, text) pairs; empty means
+	// free colors.
+	LabelPalette() []LabelColor
+}
+
+// LabelPager reads one provider page of the threads carrying a label,
+// newest first. Tokens are opaque; changes are backfill and never notify.
+type LabelPager interface {
+	LabelPage(ctx context.Context, labelID, pageToken string) (Changes, string, error)
 }
 
 // Provider is implemented once per account type. Implementations must be

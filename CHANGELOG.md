@@ -2,6 +2,20 @@
 
 All notable changes to **Dux Mail** (`dux-mail`, formerly **DankMail** — `dmail` daemon, `dmail mcp` server, Quickshell UI, and the `dankmailUnread` / **Dux Mail Unread** Dux Shell companion) are documented in this file.
 
+## [0.6.0] - Unreleased
+
+### Added
+- **Labels (Gmail accounts)** — see `docs/design/labels.md`:
+  - New provider capability `CapLabels` with the optional `provider.LabelManager` (list, create, update, delete, modify, palette) and `provider.LabelPager` interfaces. Only the Gmail provider implements them (over `users.labels.*`, `users.threads.modify` and `users.threads.list(labelIds)`); IMAP and Microsoft do not declare the capability. `ModifyLabels` refuses system label IDs, and deleting a label removes it from every thread without ever deleting mail. The label color palette is the fixed Gmail set, exposed through `labels.palette`.
+  - New `Label` ent schema (additive migration) caching each account's label catalog; refreshed at daemon start, after every create/update/delete, on `labels.list {refresh: true}` and after a sync when the cached catalog is older than 10 minutes. Publishes the `labels.changed` bus event.
+  - New `label` pending-op type with optimistic update of the thread labels and revert (plus `op.failed`) on permanent failure. A batch that fails is now unwound newest-first, so every op type restores the oldest snapshot.
+  - IPC: `labels.list`, `labels.palette`, `labels.create`, `labels.update`, `labels.delete`, `ops.label` (label IDs or names, resolved per account), `threads.fetchLabel`, `accounts.setMonitoredLabels`; `threads.list` gains `labelName`; `accounts.list` reports each account's `capabilities` (`["labels"]` for Gmail).
+  - CLI: `dmail label list|create|rename|color|delete|add|remove`.
+  - MCP: `list_labels`, `label_threads` (`draft`/`full`), `create_label`, `update_label`, `delete_label` (`full` only); `list_threads` and `search_mail` accept `label` and return `labelNames`.
+  - English source strings with `es` and `pt` overrides for the new CLI output.
+  - Triage window: label chips on thread rows and in the open thread header; a **Labels** panel with the label tree (merged by name across accounts, nested by `/`) whose views page archived threads on demand; a label picker on `l` for one or several threads (search, toggle, apply, create inline); **Manage labels** in Settings (create, rename, recolor from the Gmail palette or remove the color, delete with confirmation, and an **Always sync** toggle per label). All of it is hidden for accounts without the labels capability.
+  - Keyboard shortcut `i` moves the selected archived threads back to the inbox in any non-inbox view.
+
 ## [0.5.1] - 2026-11-13
 
 ### Fixed

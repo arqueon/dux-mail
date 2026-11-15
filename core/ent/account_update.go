@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/arqueon/dux-mail/core/ent/account"
 	"github.com/arqueon/dux-mail/core/ent/contact"
+	"github.com/arqueon/dux-mail/core/ent/label"
 	"github.com/arqueon/dux-mail/core/ent/notifyrule"
 	"github.com/arqueon/dux-mail/core/ent/pendingop"
 	"github.com/arqueon/dux-mail/core/ent/predicate"
@@ -274,6 +275,21 @@ func (_u *AccountUpdate) AddSecrets(v ...*Secret) *AccountUpdate {
 	return _u.AddSecretIDs(ids...)
 }
 
+// AddLabelIDs adds the "labels" edge to the Label entity by IDs.
+func (_u *AccountUpdate) AddLabelIDs(ids ...int) *AccountUpdate {
+	_u.mutation.AddLabelIDs(ids...)
+	return _u
+}
+
+// AddLabels adds the "labels" edges to the Label entity.
+func (_u *AccountUpdate) AddLabels(v ...*Label) *AccountUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddLabelIDs(ids...)
+}
+
 // Mutation returns the AccountMutation object of the builder.
 func (_u *AccountUpdate) Mutation() *AccountMutation {
 	return _u.mutation
@@ -382,6 +398,27 @@ func (_u *AccountUpdate) RemoveSecrets(v ...*Secret) *AccountUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSecretIDs(ids...)
+}
+
+// ClearLabels clears all "labels" edges to the Label entity.
+func (_u *AccountUpdate) ClearLabels() *AccountUpdate {
+	_u.mutation.ClearLabels()
+	return _u
+}
+
+// RemoveLabelIDs removes the "labels" edge to Label entities by IDs.
+func (_u *AccountUpdate) RemoveLabelIDs(ids ...int) *AccountUpdate {
+	_u.mutation.RemoveLabelIDs(ids...)
+	return _u
+}
+
+// RemoveLabels removes "labels" edges to Label entities.
+func (_u *AccountUpdate) RemoveLabels(v ...*Label) *AccountUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveLabelIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -711,6 +748,51 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.LabelsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   account.LabelsTable,
+			Columns: []string{account.LabelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(label.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedLabelsIDs(); len(nodes) > 0 && !_u.mutation.LabelsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   account.LabelsTable,
+			Columns: []string{account.LabelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(label.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.LabelsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   account.LabelsTable,
+			Columns: []string{account.LabelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(label.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	_spec.AddModifiers(_u.modifiers...)
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -972,6 +1054,21 @@ func (_u *AccountUpdateOne) AddSecrets(v ...*Secret) *AccountUpdateOne {
 	return _u.AddSecretIDs(ids...)
 }
 
+// AddLabelIDs adds the "labels" edge to the Label entity by IDs.
+func (_u *AccountUpdateOne) AddLabelIDs(ids ...int) *AccountUpdateOne {
+	_u.mutation.AddLabelIDs(ids...)
+	return _u
+}
+
+// AddLabels adds the "labels" edges to the Label entity.
+func (_u *AccountUpdateOne) AddLabels(v ...*Label) *AccountUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddLabelIDs(ids...)
+}
+
 // Mutation returns the AccountMutation object of the builder.
 func (_u *AccountUpdateOne) Mutation() *AccountMutation {
 	return _u.mutation
@@ -1080,6 +1177,27 @@ func (_u *AccountUpdateOne) RemoveSecrets(v ...*Secret) *AccountUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSecretIDs(ids...)
+}
+
+// ClearLabels clears all "labels" edges to the Label entity.
+func (_u *AccountUpdateOne) ClearLabels() *AccountUpdateOne {
+	_u.mutation.ClearLabels()
+	return _u
+}
+
+// RemoveLabelIDs removes the "labels" edge to Label entities by IDs.
+func (_u *AccountUpdateOne) RemoveLabelIDs(ids ...int) *AccountUpdateOne {
+	_u.mutation.RemoveLabelIDs(ids...)
+	return _u
+}
+
+// RemoveLabels removes "labels" edges to Label entities.
+func (_u *AccountUpdateOne) RemoveLabels(v ...*Label) *AccountUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveLabelIDs(ids...)
 }
 
 // Where appends a list predicates to the AccountUpdate builder.
@@ -1432,6 +1550,51 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(secret.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.LabelsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   account.LabelsTable,
+			Columns: []string{account.LabelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(label.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedLabelsIDs(); len(nodes) > 0 && !_u.mutation.LabelsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   account.LabelsTable,
+			Columns: []string{account.LabelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(label.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.LabelsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   account.LabelsTable,
+			Columns: []string{account.LabelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(label.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

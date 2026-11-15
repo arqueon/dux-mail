@@ -45,5 +45,6 @@ func (Account) Edges() []ent.Edge {
 		edge.To("notify_rules", NotifyRule.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("contacts", Contact.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("secrets", Secret.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("labels", Label.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }

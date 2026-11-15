@@ -17,6 +17,10 @@ type AccountView struct {
 	LastError   string     `json:"lastError,omitempty"`
 	LastSyncAt  *time.Time `json:"lastSyncAt,omitempty"`
 	Unread      int        `json:"unread"`
+	// Capabilities lists the optional features of the account's provider
+	// ("labels"). Empty (never null) when the provider declares none, or
+	// when the account is currently unavailable.
+	Capabilities []string `json:"capabilities"`
 }
 
 type ThreadSummary struct {
@@ -97,4 +101,14 @@ type DaemonStatus struct {
 	Unread   int           `json:"unread"`
 	Queue    QueueStats    `json:"queue"`
 	DND      bool          `json:"dnd"`
+}
+
+// LabelView is one user label of one account (the cached catalog).
+type LabelView struct {
+	ID        string `json:"id"` // provider label ID
+	AccountID string `json:"accountId"`
+	Name      string `json:"name"`
+	ColorBg   string `json:"colorBg"`   // "" when the label has no color
+	ColorText string `json:"colorText"` // "" when the label has no color
+	Monitored bool   `json:"monitored"` // listed in the account's always-synced labels
 }

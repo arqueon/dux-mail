@@ -45,6 +45,11 @@ type Engine struct {
 	scheduler    *Scheduler
 	settings     *settings.Store
 	accountLocks gosync.Map // uuid.UUID → cancellable per-account semaphore
+
+	// OnSynced, when set before Run, is called after every successful
+	// complete sync pass of an account (never for checkpoints). It must not
+	// block: the daemon uses it to refresh the label catalog in the background.
+	OnSynced func(accountID uuid.UUID)
 }
 
 func NewEngine(db *ent.Client, b *bus.Bus, q *Queue, reg Registry, sched *Scheduler, set *settings.Store) *Engine {
@@ -214,6 +219,9 @@ func (e *Engine) syncAccount(ctx context.Context, accountID uuid.UUID, full bool
 			return syncErr
 		}
 		if !changes.Incomplete {
+			if e.OnSynced != nil {
+				e.OnSynced(accountID)
+			}
 			return nil
 		}
 		if cursor == acct.SyncCursor {

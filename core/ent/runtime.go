@@ -7,6 +7,7 @@ import (
 
 	"github.com/arqueon/dux-mail/core/ent/account"
 	"github.com/arqueon/dux-mail/core/ent/contact"
+	"github.com/arqueon/dux-mail/core/ent/label"
 	"github.com/arqueon/dux-mail/core/ent/message"
 	"github.com/arqueon/dux-mail/core/ent/notifyrule"
 	"github.com/arqueon/dux-mail/core/ent/pendingop"
@@ -64,6 +65,24 @@ func init() {
 	contactDescLastSeen := contactFields[4].Descriptor()
 	// contact.DefaultLastSeen holds the default value on creation for the last_seen field.
 	contact.DefaultLastSeen = contactDescLastSeen.Default.(func() time.Time)
+	labelFields := schema.Label{}.Fields()
+	_ = labelFields
+	// labelDescProviderLabelID is the schema descriptor for provider_label_id field.
+	labelDescProviderLabelID := labelFields[0].Descriptor()
+	// label.ProviderLabelIDValidator is a validator for the "provider_label_id" field. It is called by the builders before save.
+	label.ProviderLabelIDValidator = labelDescProviderLabelID.Validators[0].(func(string) error)
+	// labelDescName is the schema descriptor for name field.
+	labelDescName := labelFields[1].Descriptor()
+	// label.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	label.NameValidator = labelDescName.Validators[0].(func(string) error)
+	// labelDescColorBg is the schema descriptor for color_bg field.
+	labelDescColorBg := labelFields[2].Descriptor()
+	// label.DefaultColorBg holds the default value on creation for the color_bg field.
+	label.DefaultColorBg = labelDescColorBg.Default.(string)
+	// labelDescColorText is the schema descriptor for color_text field.
+	labelDescColorText := labelFields[3].Descriptor()
+	// label.DefaultColorText holds the default value on creation for the color_text field.
+	label.DefaultColorText = labelDescColorText.Default.(string)
 	messageFields := schema.Message{}.Fields()
 	_ = messageFields
 	// messageDescRfc822MessageID is the schema descriptor for rfc822_message_id field.

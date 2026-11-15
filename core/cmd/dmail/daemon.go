@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/arqueon/dux-mail/core/api/server"
 	"github.com/arqueon/dux-mail/core/config"
 	"github.com/arqueon/dux-mail/core/ent"
@@ -59,6 +61,10 @@ type daemon struct {
 
 	mu     gosync.Mutex
 	engine *dsync.Engine
+
+	// labelsAt records when each account's label catalog was last
+	// refreshed (uuid.UUID → time.Time).
+	labelsAt gosync.Map
 }
 
 // runDaemon assembles and runs everything until SIGINT/SIGTERM or
@@ -203,6 +209,8 @@ func (d *daemon) engineLoop(ctx context.Context) {
 		}
 		scheduler := dsync.NewScheduler(d.db, d.bus, d.queue, true)
 		engine := dsync.NewEngine(d.db, d.bus, d.queue, d.registry, scheduler, d.settings)
+		engine.OnSynced = func(id uuid.UUID) { d.refreshLabelsIfStale(ctx, id) }
+		go d.refreshAllLabels(ctx)
 		d.mu.Lock()
 		d.engine = engine
 		d.mu.Unlock()

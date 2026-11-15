@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/arqueon/dux-mail/core/internal/provider"
 	dsync "github.com/arqueon/dux-mail/core/internal/sync"
 )
@@ -20,6 +22,22 @@ func (d *daemon) fetchSent(ctx context.Context, p map[string]any) (any, error) {
 }
 
 func (d *daemon) fetchMailboxHistory(ctx context.Context, p map[string]any, sent bool) (any, error) {
+	return d.fetchHistory(ctx, p, func(_ uuid.UUID, prov provider.Provider) func(context.Context, string) (provider.Changes, string, error) {
+		if sent {
+			if pager, ok := prov.(provider.SentPager); ok {
+				return pager.SentPage
+			}
+		} else if pager, ok := prov.(provider.ArchivedPager); ok {
+			return pager.ArchivedPage
+		}
+		return nil
+	})
+}
+
+// fetchHistory pages one provider listing per account. pick returns the page
+// function for an account's provider, or nil when the account has no such
+// listing (it is then skipped and not counted as supported).
+func (d *daemon) fetchHistory(ctx context.Context, p map[string]any, pick func(uuid.UUID, provider.Provider) func(context.Context, string) (provider.Changes, string, error)) (any, error) {
 	wanted, _ := p["account"].(string)
 	if wanted != "" {
 		if _, err := parseUUID(wanted); err != nil {
@@ -57,16 +75,7 @@ func (d *daemon) fetchMailboxHistory(ctx context.Context, p map[string]any, sent
 			warnings = append(warnings, "Account provider unavailable")
 			continue
 		}
-		var page func(context.Context, string) (provider.Changes, string, error)
-		if sent {
-			if pager, ok := prov.(provider.SentPager); ok {
-				page = pager.SentPage
-			}
-		} else {
-			if pager, ok := prov.(provider.ArchivedPager); ok {
-				page = pager.ArchivedPage
-			}
-		}
+		page := pick(id, prov)
 		if page == nil {
 			continue
 		}

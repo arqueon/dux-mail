@@ -23,6 +23,18 @@ type fakeInvoker struct {
 	attPath string
 }
 
+func (f *fakeInvoker) callsTo(method string) []map[string]any {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []map[string]any
+	for _, c := range f.calls {
+		if c.method == method {
+			out = append(out, c.params)
+		}
+	}
+	return out
+}
+
 func (f *fakeInvoker) Call(_ context.Context, method string, params map[string]any) (json.RawMessage, error) {
 	f.mu.Lock()
 	f.calls = append(f.calls, struct {
@@ -40,8 +52,15 @@ func (f *fakeInvoker) Call(_ context.Context, method string, params map[string]a
 	switch method {
 	case "accounts.list":
 		return must([]models.AccountView{
-			{ID: "11111111-1111-1111-1111-111111111111", Email: "ruben@example.org", Type: "gmail", Unread: 2, Status: "ok"},
+			{ID: "11111111-1111-1111-1111-111111111111", Email: "ruben@example.org", Type: "gmail", Unread: 2, Status: "ok", Capabilities: []string{"labels"}},
 		})
+	case "labels.list":
+		return must([]models.LabelView{
+			{ID: "Label_1", AccountID: "11111111-1111-1111-1111-111111111111", Name: "Auto/Compras", ColorBg: "#16a765", ColorText: "#ffffff"},
+			{ID: "Label_2", AccountID: "11111111-1111-1111-1111-111111111111", Name: "Work"},
+		})
+	case "labels.create", "labels.update":
+		return must(models.LabelView{ID: "Label_3", AccountID: "11111111-1111-1111-1111-111111111111", Name: "Created"})
 	case "system.status":
 		return must(models.DaemonStatus{
 			Version: "v0.5.0",
@@ -64,6 +83,7 @@ func (f *fakeInvoker) Call(_ context.Context, method string, params map[string]a
 				MessageCount:  1,
 				Unread:        true,
 				InInbox:       true,
+				Labels:        []string{"INBOX", "Label_1", "Label_404"},
 			},
 		})
 	case "threads.get":

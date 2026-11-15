@@ -18,6 +18,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/arqueon/dux-mail/core/ent/account"
 	"github.com/arqueon/dux-mail/core/ent/contact"
+	"github.com/arqueon/dux-mail/core/ent/label"
 	"github.com/arqueon/dux-mail/core/ent/message"
 	"github.com/arqueon/dux-mail/core/ent/notifyrule"
 	"github.com/arqueon/dux-mail/core/ent/pendingop"
@@ -36,6 +37,8 @@ type Client struct {
 	Account *AccountClient
 	// Contact is the client for interacting with the Contact builders.
 	Contact *ContactClient
+	// Label is the client for interacting with the Label builders.
+	Label *LabelClient
 	// Message is the client for interacting with the Message builders.
 	Message *MessageClient
 	// NotifyRule is the client for interacting with the NotifyRule builders.
@@ -59,6 +62,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Account = NewAccountClient(c.config)
 	c.Contact = NewContactClient(c.config)
+	c.Label = NewLabelClient(c.config)
 	c.Message = NewMessageClient(c.config)
 	c.NotifyRule = NewNotifyRuleClient(c.config)
 	c.PendingOp = NewPendingOpClient(c.config)
@@ -158,6 +162,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:     cfg,
 		Account:    NewAccountClient(cfg),
 		Contact:    NewContactClient(cfg),
+		Label:      NewLabelClient(cfg),
 		Message:    NewMessageClient(cfg),
 		NotifyRule: NewNotifyRuleClient(cfg),
 		PendingOp:  NewPendingOpClient(cfg),
@@ -184,6 +189,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:     cfg,
 		Account:    NewAccountClient(cfg),
 		Contact:    NewContactClient(cfg),
+		Label:      NewLabelClient(cfg),
 		Message:    NewMessageClient(cfg),
 		NotifyRule: NewNotifyRuleClient(cfg),
 		PendingOp:  NewPendingOpClient(cfg),
@@ -218,7 +224,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.Account, c.Contact, c.Message, c.NotifyRule, c.PendingOp, c.Secret, c.Thread,
+		c.Account, c.Contact, c.Label, c.Message, c.NotifyRule, c.PendingOp, c.Secret,
+		c.Thread,
 	} {
 		n.Use(hooks...)
 	}
@@ -228,7 +235,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.Account, c.Contact, c.Message, c.NotifyRule, c.PendingOp, c.Secret, c.Thread,
+		c.Account, c.Contact, c.Label, c.Message, c.NotifyRule, c.PendingOp, c.Secret,
+		c.Thread,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -241,6 +249,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Account.mutate(ctx, m)
 	case *ContactMutation:
 		return c.Contact.mutate(ctx, m)
+	case *LabelMutation:
+		return c.Label.mutate(ctx, m)
 	case *MessageMutation:
 		return c.Message.mutate(ctx, m)
 	case *NotifyRuleMutation:
@@ -444,6 +454,22 @@ func (c *AccountClient) QuerySecrets(_m *Account) *SecretQuery {
 	return query
 }
 
+// QueryLabels queries the labels edge of a Account.
+func (c *AccountClient) QueryLabels(_m *Account) *LabelQuery {
+	query := (&LabelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(account.Table, account.FieldID, id),
+			sqlgraph.To(label.Table, label.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, account.LabelsTable, account.LabelsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *AccountClient) Hooks() []Hook {
 	return c.hooks.Account
@@ -615,6 +641,155 @@ func (c *ContactClient) mutate(ctx context.Context, m *ContactMutation) (Value, 
 		return (&ContactDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Contact mutation op: %q", m.Op())
+	}
+}
+
+// LabelClient is a client for the Label schema.
+type LabelClient struct {
+	config
+}
+
+// NewLabelClient returns a client for the Label from the given config.
+func NewLabelClient(c config) *LabelClient {
+	return &LabelClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `label.Hooks(f(g(h())))`.
+func (c *LabelClient) Use(hooks ...Hook) {
+	c.hooks.Label = append(c.hooks.Label, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `label.Intercept(f(g(h())))`.
+func (c *LabelClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Label = append(c.inters.Label, interceptors...)
+}
+
+// Create returns a builder for creating a Label entity.
+func (c *LabelClient) Create() *LabelCreate {
+	mutation := newLabelMutation(c.config, OpCreate)
+	return &LabelCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Label entities.
+func (c *LabelClient) CreateBulk(builders ...*LabelCreate) *LabelCreateBulk {
+	return &LabelCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *LabelClient) MapCreateBulk(slice any, setFunc func(*LabelCreate, int)) *LabelCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &LabelCreateBulk{err: fmt.Errorf("calling to LabelClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*LabelCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &LabelCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Label.
+func (c *LabelClient) Update() *LabelUpdate {
+	mutation := newLabelMutation(c.config, OpUpdate)
+	return &LabelUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *LabelClient) UpdateOne(_m *Label) *LabelUpdateOne {
+	mutation := newLabelMutation(c.config, OpUpdateOne, withLabel(_m))
+	return &LabelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *LabelClient) UpdateOneID(id int) *LabelUpdateOne {
+	mutation := newLabelMutation(c.config, OpUpdateOne, withLabelID(id))
+	return &LabelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Label.
+func (c *LabelClient) Delete() *LabelDelete {
+	mutation := newLabelMutation(c.config, OpDelete)
+	return &LabelDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *LabelClient) DeleteOne(_m *Label) *LabelDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *LabelClient) DeleteOneID(id int) *LabelDeleteOne {
+	builder := c.Delete().Where(label.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &LabelDeleteOne{builder}
+}
+
+// Query returns a query builder for Label.
+func (c *LabelClient) Query() *LabelQuery {
+	return &LabelQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeLabel},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Label entity by its id.
+func (c *LabelClient) Get(ctx context.Context, id int) (*Label, error) {
+	return c.Query().Where(label.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *LabelClient) GetX(ctx context.Context, id int) *Label {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAccount queries the account edge of a Label.
+func (c *LabelClient) QueryAccount(_m *Label) *AccountQuery {
+	query := (&AccountClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(label.Table, label.FieldID, id),
+			sqlgraph.To(account.Table, account.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, label.AccountTable, label.AccountColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *LabelClient) Hooks() []Hook {
+	return c.hooks.Label
+}
+
+// Interceptors returns the client interceptors.
+func (c *LabelClient) Interceptors() []Interceptor {
+	return c.inters.Label
+}
+
+func (c *LabelClient) mutate(ctx context.Context, m *LabelMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&LabelCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&LabelUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&LabelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&LabelDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Label mutation op: %q", m.Op())
 	}
 }
 
@@ -1382,10 +1557,11 @@ func (c *ThreadClient) mutate(ctx context.Context, m *ThreadMutation) (Value, er
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Account, Contact, Message, NotifyRule, PendingOp, Secret, Thread []ent.Hook
+		Account, Contact, Label, Message, NotifyRule, PendingOp, Secret,
+		Thread []ent.Hook
 	}
 	inters struct {
-		Account, Contact, Message, NotifyRule, PendingOp, Secret,
+		Account, Contact, Label, Message, NotifyRule, PendingOp, Secret,
 		Thread []ent.Interceptor
 	}
 )

@@ -65,6 +65,14 @@ type fakeAPI struct {
 	searchPages  []listPage
 	lastQuery    string
 	lastPageSize int
+
+	// labels API (see labels_test.go)
+	labels       []*gmailv1.Label
+	labelErr     error
+	labelPages   map[string][]listPage // key: label ID
+	labelCreated []*gmailv1.Label
+	labelPatches map[string]*gmailv1.Label
+	labelDeleted []string
 }
 
 func (f *fakeAPI) record(name string) { f.calls = append(f.calls, name) }
@@ -824,7 +832,7 @@ func TestCapabilitiesAndID(t *testing.T) {
 	}
 	want := provider.CapModifyFlags | provider.CapArchive | provider.CapTrash |
 		provider.CapSendReply | provider.CapCompose | provider.CapDeepLink |
-		provider.CapHistorySync | provider.CapUnspam | provider.CapSpam
+		provider.CapHistorySync | provider.CapUnspam | provider.CapSpam | provider.CapLabels
 	if got := p.Capabilities(); got != want {
 		t.Errorf("Capabilities = %b, want %b", got, want)
 	}

@@ -18,7 +18,8 @@
     "Archived": "Archivados",
     "Spam": "Spam",
     "Sent": "Enviados",
-    "Drafts": "Borradores"
+    "Drafts": "Borradores",
+    "Labels": "Etiquetas"
   },
   "drafts": {
     "(no recipients)": "(sin destinatarios)"
@@ -41,7 +42,8 @@
     "Add a Gmail account": "Añadir cuenta de Gmail",
     "No local results — search the full history or the web": "Sin resultados locales — busca en el historial completo o en la web",
     "No sent mail": "No hay correos enviados",
-    "No saved drafts": "No hay borradores guardados"
+    "No saved drafts": "No hay borradores guardados",
+    "No mail with this label": "No hay correos con esta etiqueta"
   },
   "search": {
     "Search mail…": "Buscar correo…",
@@ -57,7 +59,12 @@
     "Could not load sent mail. Try again later.": "No se pudieron cargar los enviados. Intenta más tarde.",
     "Loading sent mail…": "Cargando enviados…",
     "Retry sent mail": "Reintentar enviados",
-    "Load older sent mail": "Cargar enviados anteriores"
+    "Load older sent mail": "Cargar enviados anteriores",
+    "Loading labeled mail…": "Cargando correos con etiqueta…",
+    "Retry labeled mail": "Reintentar correos con etiqueta",
+    "Load older labeled mail": "Cargar correos antiguos con etiqueta",
+    "Could not load mail with this label. Try again later.": "No se pudieron cargar los correos con esta etiqueta. Inténtalo más tarde.",
+    "This account only supports cached mail with this label.": "Esta cuenta solo admite los correos con esta etiqueta que ya están en caché."
   },
   "account wizard title": {
     "Add account": "Añadir cuenta"
@@ -139,7 +146,8 @@
     "Notification buttons": "Botones de notificación",
     "Chained actions": "Acciones encadenadas",
     "Sync interval": "Intervalo de sincronización",
-    "Accounts": "Cuentas"
+    "Accounts": "Cuentas",
+    "Manage labels": "Gestionar etiquetas"
   },
   "sync interval": {
     "30 seconds": "30 segundos",
@@ -163,7 +171,8 @@
     "Sending a reply marks the thread read": "Enviar una respuesta marca el hilo como leído",
     "Trashing also marks read": "Enviar a papelera también marca como leído",
     "Starring moves the thread back to the inbox": "Destacar devuelve el hilo a la bandeja",
-    "How often each account is polled for new mail. Shorter is snappier; all options stay well within provider rate limits.": "Cada cuánto se consulta cada cuenta en busca de correo nuevo. Más corto es más ágil; todas las opciones quedan holgadas dentro de los límites del proveedor."
+    "How often each account is polled for new mail. Shorter is snappier; all options stay well within provider rate limits.": "Cada cuánto se consulta cada cuenta en busca de correo nuevo. Más corto es más ágil; todas las opciones quedan holgadas dentro de los límites del proveedor.",
+    "Labels belong to each account. Labels marked “Always sync” stay in sync with the provider on every sync.": "Las etiquetas pertenecen a cada cuenta. Las marcadas con «Sincronizar siempre» se mantienen sincronizadas con el proveedor en cada sincronización."
   },
   "compose": {
     "New message": "Mensaje nuevo",
@@ -278,5 +287,32 @@
   },
   "operation error": {
     "Could not apply the action: %1": "No se pudo aplicar la acción: %1"
+  },
+  "label picker": {
+    "Labels": "Etiquetas",
+    "1 thread": "1 conversación",
+    "%1 threads": "%1 conversaciones",
+    "Search or create a label…": "Buscar o crear una etiqueta…",
+    "Create label “%1”": "Crear la etiqueta «%1»",
+    "No labels yet": "Aún no hay etiquetas",
+    "Apply": "Aplicar",
+    "Could not create the label: %1": "No se pudo crear la etiqueta: %1",
+    "↑↓ move · Tab, Space or click toggles · Enter applies · Esc cancels": "↑↓ mover · Tab, Espacio o clic alterna · Intro aplica · Esc cancela"
+  },
+  "label panel": {
+    "No labels yet": "Aún no hay etiquetas"
+  },
+  "label settings": {
+    "1 label": "1 etiqueta",
+    "%1 labels": "%1 etiquetas",
+    "New label": "Nueva etiqueta",
+    "Always sync": "Sincronizar siempre",
+    "Label name (use / to nest)": "Nombre de la etiqueta (usa / para anidar)",
+    "Renaming does not rename the labels nested under it.": "Renombrar no cambia el nombre de las etiquetas anidadas debajo.",
+    "Create": "Crear",
+    "Save": "Guardar",
+    "Delete label": "Eliminar etiqueta",
+    "Delete the label “%1”?": "¿Eliminar la etiqueta «%1»?",
+    "The label is removed from every thread that has it. Your mail is NOT deleted. This cannot be undone.": "La etiqueta se quita de todas las conversaciones que la tienen. Tu correo NO se elimina. Esta acción no se puede deshacer."
   }
 }

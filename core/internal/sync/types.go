@@ -25,6 +25,7 @@ const (
 	OpSnoozeWake OpType = "snooze_wake"
 	OpSendReply  OpType = "send_reply"
 	OpCompose    OpType = "compose"
+	OpLabel      OpType = "label"
 )
 
 // batchable reports whether consecutive ops of this type against the same
@@ -66,11 +67,19 @@ type SnoozePayload struct {
 	MarkUnread bool `json:"markUnread,omitempty"`
 }
 
+// LabelsPayload parameterizes label ops: provider label IDs to add to and
+// remove from the op's threads.
+type LabelsPayload struct {
+	Add    []string `json:"add,omitempty"`
+	Remove []string `json:"remove,omitempty"`
+}
+
 // OpPayload carries op-specific data; unused fields stay empty.
 type OpPayload struct {
 	Reply   *provider.ReplyDraft   `json:"reply,omitempty"`
 	Compose *provider.ComposeDraft `json:"compose,omitempty"`
 	Snooze  *SnoozePayload         `json:"snooze,omitempty"`
+	Labels  *LabelsPayload         `json:"labels,omitempty"`
 	// Prev maps provider thread ID → pre-op state, captured at enqueue
 	// time, used to revert the optimistic change if the op fails for good.
 	Prev map[string]ThreadState `json:"prev,omitempty"`

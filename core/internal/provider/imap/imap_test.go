@@ -228,3 +228,13 @@ func TestIMAPSearchRemoteAcrossMailboxes(t *testing.T) {
 		t.Fatalf("got subject %q", changes.Upserted[0].Subject)
 	}
 }
+
+func TestIMAPDoesNotDeclareLabels(t *testing.T) {
+	p := New("acct", "a@example.org", Options{})
+	if p.Capabilities().Has(provider.CapLabels) {
+		t.Fatal("IMAP must not declare CapLabels")
+	}
+	if _, ok := any(p).(provider.LabelManager); ok {
+		t.Fatal("IMAP must not implement LabelManager")
+	}
+}

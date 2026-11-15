@@ -14,7 +14,8 @@ over the daemon. Closing the window hides it; sync keeps running
 Every backend implements `internal/provider.Provider` and declares a
 static `Capability` bitmask (`CapModifyFlags`, `CapArchive`, `CapTrash`,
 `CapSendReply`, `CapCompose`, `CapPush`, `CapDeepLink`,
-`CapHistorySync`, reserved `CapServerSnooze`). The UI and the op queue
+`CapHistorySync`, `CapUnspam`, `CapSpam`, `CapLabels`, reserved
+`CapServerSnooze`). The UI and the op queue
 adapt to the declared set; calling an unsupported method is a bug, never
 a runtime fallback. Two providers are planned:
 
@@ -28,6 +29,12 @@ a runtime fallback. Two providers are planned:
   batches). Deep links use `#all/{threadId}` + `authuser=` with
   `#search/rfc822msgid:` as fallback. Replies are plain-text MIME with
   `In-Reply-To`/`References` and the original `threadId`.
+  Only Gmail declares `CapLabels`: user labels are listed and managed
+  through `users.labels.*` (catalog cached in the `Label` table, refreshed
+  at start, after each change and after a sync older than 10 minutes),
+  applied with `users.threads.modify` through the `label` pending op, and
+  paged on demand with `users.threads.list(labelIds=…)`. The allowed label
+  colors are the fixed Gmail palette. See `design/labels.md`.
 - **Generic IMAP.** App-password auth (keyring), RFC 6154 SPECIAL-USE
   for Archive/Trash/Sent with heuristic + per-account override,
   `\Seen`/`\Flagged` flags, MOVE for archive/trash, IDLE for push and

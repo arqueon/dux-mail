@@ -11,6 +11,7 @@ import (
 	"github.com/arqueon/dux-mail/core/ent/account"
 	"github.com/arqueon/dux-mail/core/ent/message"
 	"github.com/arqueon/dux-mail/core/ent/pendingop"
+	"github.com/arqueon/dux-mail/core/ent/predicate"
 	"github.com/arqueon/dux-mail/core/ent/thread"
 	"github.com/arqueon/dux-mail/core/models"
 )
@@ -30,6 +31,10 @@ type ThreadFilter struct {
 	// Label keeps only threads carrying this provider label (e.g.
 	// "SPAM" for the spam-review view).
 	Label string
+	// LabelName keeps threads carrying, in each account, the label of this
+	// name (case-insensitive). Combined with AccountID it narrows to one
+	// account. A name no account has matches nothing.
+	LabelName string
 	// ExcludeInbox drops threads still sitting in the inbox — the spam
 	// view uses it so mixed threads (one spam message, thread alive in
 	// the inbox) don't show up as spam.
@@ -98,6 +103,26 @@ func (r *Repo) ListThreads(ctx context.Context, f ThreadFilter) ([]models.Thread
 		q = q.Where(func(s *sql.Selector) {
 			s.Where(sqljson.ValueContains(thread.FieldLabels, f.Label))
 		})
+	}
+	if f.LabelName != "" {
+		byAccount, err := r.LabelIDsByName(ctx, f.LabelName)
+		if err != nil {
+			return nil, err
+		}
+		var any []predicate.Thread
+		for acct, id := range byAccount {
+			if f.AccountID != nil && *f.AccountID != acct {
+				continue
+			}
+			any = append(any, thread.And(
+				thread.HasAccountWith(account.IDEQ(acct)),
+				func(s *sql.Selector) { s.Where(sqljson.ValueContains(thread.FieldLabels, id)) },
+			))
+		}
+		if len(any) == 0 {
+			return []models.ThreadSummary{}, nil
+		}
+		q = q.Where(thread.Or(any...))
 	}
 	if f.ExcludeInbox {
 		q = q.Where(thread.InInboxEQ(false))
@@ -189,17 +214,18 @@ func (r *Repo) Accounts(ctx context.Context) ([]models.AccountView, error) {
 			return nil, err
 		}
 		out = append(out, models.AccountView{
-			ID:          a.ID.String(),
-			Type:        string(a.Type),
-			Email:       a.Email,
-			DisplayName: a.DisplayName,
-			Status:      string(a.Status),
-			NeedsReauth: a.NeedsReauth,
-			AuthError:   a.AuthError,
-			SyncNotice:  a.SyncNotice,
-			LastError:   a.LastError,
-			LastSyncAt:  a.LastSyncAt,
-			Unread:      unread,
+			ID:           a.ID.String(),
+			Type:         string(a.Type),
+			Email:        a.Email,
+			DisplayName:  a.DisplayName,
+			Status:       string(a.Status),
+			NeedsReauth:  a.NeedsReauth,
+			AuthError:    a.AuthError,
+			SyncNotice:   a.SyncNotice,
+			LastError:    a.LastError,
+			LastSyncAt:   a.LastSyncAt,
+			Unread:       unread,
+			Capabilities: []string{},
 		})
 	}
 	return out, nil

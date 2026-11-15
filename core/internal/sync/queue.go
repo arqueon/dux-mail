@@ -223,6 +223,11 @@ func applyLocal(ctx context.Context, tx *ent.Tx, op *Op, rows []*ent.Thread) err
 			if op.Payload.Snooze != nil && op.Payload.Snooze.MarkUnread {
 				u.SetUnread(true)
 			}
+		case OpLabel:
+			if op.Payload.Labels == nil {
+				return fmt.Errorf("sync: label op without payload")
+			}
+			u.SetLabels(applyLabelDelta(t.Labels, op.Payload.Labels))
 		case OpSendReply, OpCompose:
 			continue // no local thread state change
 		default:
@@ -233,6 +238,30 @@ func applyLocal(ctx context.Context, tx *ent.Tx, op *Op, rows []*ent.Thread) err
 		}
 	}
 	return nil
+}
+
+// applyLabelDelta returns labels with add inserted (deduplicated) and remove
+// dropped. The input slice is not modified.
+func applyLabelDelta(labels []string, d *LabelsPayload) []string {
+	drop := make(map[string]bool, len(d.Remove))
+	for _, id := range d.Remove {
+		drop[id] = true
+	}
+	out := make([]string, 0, len(labels)+len(d.Add))
+	seen := map[string]bool{}
+	for _, id := range labels {
+		if !drop[id] && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	for _, id := range d.Add {
+		if !drop[id] && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // revertLocal restores the pre-op snapshots after a permanent failure.

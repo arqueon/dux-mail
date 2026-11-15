@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/arqueon/dux-mail/core/ent/account"
 	"github.com/arqueon/dux-mail/core/ent/contact"
+	"github.com/arqueon/dux-mail/core/ent/label"
 	"github.com/arqueon/dux-mail/core/ent/message"
 	"github.com/arqueon/dux-mail/core/ent/notifyrule"
 	"github.com/arqueon/dux-mail/core/ent/pendingop"
@@ -81,6 +82,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			account.Table:    account.ValidColumn,
 			contact.Table:    contact.ValidColumn,
+			label.Table:      label.ValidColumn,
 			message.Table:    message.ValidColumn,
 			notifyrule.Table: notifyrule.ValidColumn,
 			pendingop.Table:  pendingop.ValidColumn,

@@ -262,3 +262,13 @@ func TestSendReplyThreadsMIME(t *testing.T) {
 		}
 	}
 }
+
+func TestMicrosoftDoesNotDeclareLabels(t *testing.T) {
+	p := New("acct", "a@example.org", nil, Options{})
+	if p.Capabilities().Has(provider.CapLabels) {
+		t.Fatal("Microsoft must not declare CapLabels")
+	}
+	if _, ok := any(p).(provider.LabelManager); ok {
+		t.Fatal("Microsoft must not implement LabelManager")
+	}
+}

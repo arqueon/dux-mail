@@ -77,6 +77,16 @@ var overrides = map[string]map[string]string{
 		"Daemon reloaded.":                                    "Daemon recargado.",
 		"(Daemon not running; changes apply when it starts.)": "(Daemon no activo; los cambios aplican al arrancarlo.)",
 		"Daemon restarted (dmail.service).":                   "Daemon reiniciado (dmail.service).",
+		// cli: labels
+		"Cancelled.":                            "Cancelado.",
+		"[always synced]":                       "[siempre sincronizada]",
+		"Label created: %s (%s)\n":              "Etiqueta creada: %s (%s)\n",
+		"Label renamed: %s (%s)\n":              "Etiqueta renombrada: %s (%s)\n",
+		"Label recolored: %s (%s)\n":            "Color de etiqueta cambiado: %s (%s)\n",
+		"Label deleted: %s (mail untouched).\n": "Etiqueta eliminada: %s (el correo queda intacto).\n",
+		"Label %s added to %d thread(s).\n":     "Etiqueta %s añadida a %d hilo(s).\n",
+		"Label %s removed from %d thread(s).\n": "Etiqueta %s quitada de %d hilo(s).\n",
+		"Delete label %q of %s? It is removed from every thread and cannot be undone; mail is not deleted. [y/N] ": "¿Eliminar la etiqueta %q de %s? Se quita de todos los hilos y no se puede deshacer; el correo no se borra. [y/N] ",
 	},
 	"pt": {
 		// daemon: notification action buttons
@@ -111,5 +121,15 @@ var overrides = map[string]map[string]string{
 		"Daemon reloaded.":                                    "Daemon recarregado.",
 		"(Daemon not running; changes apply when it starts.)": "(Daemon não está em execução; as alterações valem quando ele iniciar.)",
 		"Daemon restarted (dmail.service).":                   "Daemon reiniciado (dmail.service).",
+		// cli: labels
+		"Cancelled.":                            "Cancelado.",
+		"[always synced]":                       "[sempre sincronizada]",
+		"Label created: %s (%s)\n":              "Marcador criado: %s (%s)\n",
+		"Label renamed: %s (%s)\n":              "Marcador renomeado: %s (%s)\n",
+		"Label recolored: %s (%s)\n":            "Cor do marcador alterada: %s (%s)\n",
+		"Label deleted: %s (mail untouched).\n": "Marcador excluído: %s (os e-mails não foram alterados).\n",
+		"Label %s added to %d thread(s).\n":     "Marcador %s adicionado a %d conversa(s).\n",
+		"Label %s removed from %d thread(s).\n": "Marcador %s removido de %d conversa(s).\n",
+		"Delete label %q of %s? It is removed from every thread and cannot be undone; mail is not deleted. [y/N] ": "Excluir o marcador %q de %s? Ele é removido de todas as conversas e não pode ser desfeito; os e-mails não são apagados. [y/N] ",
 	},
 }

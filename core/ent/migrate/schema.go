@@ -66,6 +66,36 @@ var (
 			},
 		},
 	}
+	// LabelsColumns holds the columns for the "labels" table.
+	LabelsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "provider_label_id", Type: field.TypeString},
+		{Name: "name", Type: field.TypeString},
+		{Name: "color_bg", Type: field.TypeString, Default: ""},
+		{Name: "color_text", Type: field.TypeString, Default: ""},
+		{Name: "account_labels", Type: field.TypeUUID},
+	}
+	// LabelsTable holds the schema information for the "labels" table.
+	LabelsTable = &schema.Table{
+		Name:       "labels",
+		Columns:    LabelsColumns,
+		PrimaryKey: []*schema.Column{LabelsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "labels_accounts_labels",
+				Columns:    []*schema.Column{LabelsColumns[5]},
+				RefColumns: []*schema.Column{AccountsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "label_provider_label_id_account_labels",
+				Unique:  true,
+				Columns: []*schema.Column{LabelsColumns[1], LabelsColumns[5]},
+			},
+		},
+	}
 	// MessagesColumns holds the columns for the "messages" table.
 	MessagesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -143,7 +173,7 @@ var (
 	PendingOpsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "provider_thread_ids", Type: field.TypeJSON},
-		{Name: "op_type", Type: field.TypeEnum, Enums: []string{"mark_read", "mark_unread", "star", "unstar", "archive", "unarchive", "trash", "unspam", "spam", "snooze", "snooze_wake", "send_reply", "compose"}},
+		{Name: "op_type", Type: field.TypeEnum, Enums: []string{"mark_read", "mark_unread", "star", "unstar", "archive", "unarchive", "trash", "unspam", "spam", "snooze", "snooze_wake", "send_reply", "compose", "label"}},
 		{Name: "payload", Type: field.TypeJSON},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "attempts", Type: field.TypeInt, Default: 0},
@@ -261,6 +291,7 @@ var (
 	Tables = []*schema.Table{
 		AccountsTable,
 		ContactsTable,
+		LabelsTable,
 		MessagesTable,
 		NotifyRulesTable,
 		PendingOpsTable,
@@ -271,6 +302,7 @@ var (
 
 func init() {
 	ContactsTable.ForeignKeys[0].RefTable = AccountsTable
+	LabelsTable.ForeignKeys[0].RefTable = AccountsTable
 	MessagesTable.ForeignKeys[0].RefTable = ThreadsTable
 	NotifyRulesTable.ForeignKeys[0].RefTable = AccountsTable
 	PendingOpsTable.ForeignKeys[0].RefTable = AccountsTable

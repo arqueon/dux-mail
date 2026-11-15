@@ -62,3 +62,15 @@ type gmailAttachmentsAPI interface {
 	GetMessageFull(ctx context.Context, id string) (*gmailv1.Message, error)
 	GetAttachment(ctx context.Context, messageID, attachmentID string) ([]byte, error)
 }
+
+// gmailLabelsAPI is an optional extension of gmailAPI for managing user
+// labels (users.labels.*) and paging the threads that carry one.
+type gmailLabelsAPI interface {
+	ListLabels(ctx context.Context) ([]*gmailv1.Label, error)
+	CreateLabel(ctx context.Context, l *gmailv1.Label) (*gmailv1.Label, error)
+	PatchLabel(ctx context.Context, id string, l *gmailv1.Label) (*gmailv1.Label, error)
+	DeleteLabel(ctx context.Context, id string) error
+	// ListLabelThreads returns one page of thread IDs carrying the label,
+	// newest first (users.threads.list with labelIds).
+	ListLabelThreads(ctx context.Context, labelID, pageToken string, pageSize int) (ids []string, nextPageToken string, err error)
+}

@@ -14,6 +14,7 @@ import "sync"
 //	account.auth      — an account needs re-authentication
 //	snooze.woke       — a snoozed thread returned to the inbox
 //	message.arrived   — a genuinely new message landed (notification source)
+//	labels.changed    — an account's label catalog changed ({accountId})
 type Event struct {
 	Topic   string
 	Payload map[string]any

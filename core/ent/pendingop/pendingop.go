@@ -109,6 +109,7 @@ const (
 	OpTypeSnoozeWake OpType = "snooze_wake"
 	OpTypeSendReply  OpType = "send_reply"
 	OpTypeCompose    OpType = "compose"
+	OpTypeLabel      OpType = "label"
 )
 
 func (ot OpType) String() string {
@@ -118,7 +119,7 @@ func (ot OpType) String() string {
 // OpTypeValidator is a validator for the "op_type" field enum values. It is called by the builders before save.
 func OpTypeValidator(ot OpType) error {
 	switch ot {
-	case OpTypeMarkRead, OpTypeMarkUnread, OpTypeStar, OpTypeUnstar, OpTypeArchive, OpTypeUnarchive, OpTypeTrash, OpTypeUnspam, OpTypeSpam, OpTypeSnooze, OpTypeSnoozeWake, OpTypeSendReply, OpTypeCompose:
+	case OpTypeMarkRead, OpTypeMarkUnread, OpTypeStar, OpTypeUnstar, OpTypeArchive, OpTypeUnarchive, OpTypeTrash, OpTypeUnspam, OpTypeSpam, OpTypeSnooze, OpTypeSnoozeWake, OpTypeSendReply, OpTypeCompose, OpTypeLabel:
 		return nil
 	default:
 		return fmt.Errorf("pendingop: invalid enum value for op_type field: %q", ot)

@@ -101,7 +101,8 @@ func (p *Provider) Capabilities() provider.Capability {
 		provider.CapDeepLink |
 		provider.CapHistorySync |
 		provider.CapUnspam |
-		provider.CapSpam
+		provider.CapSpam |
+		provider.CapLabels
 }
 
 func collectThreadIDs(dst map[string]bool, h *gmailv1.History) {
@@ -709,6 +710,16 @@ func (p *Provider) SentPage(ctx context.Context, pageToken string) (provider.Cha
 }
 
 func (p *Provider) historyPage(ctx context.Context, query, pageToken string) (provider.Changes, string, error) {
+	return p.pagedThreads(ctx, query, pageToken, func(ctx context.Context, page string) ([]string, string, error) {
+		return p.api.SearchThreads(ctx, query, page, 25)
+	})
+}
+
+// pagedThreads is the shared body of every on-demand history page (archived,
+// sent, label). key identifies the listing inside the cursor so a token can
+// never be replayed against another listing; list fetches one page of IDs.
+func (p *Provider) pagedThreads(ctx context.Context, key, pageToken string, list func(ctx context.Context, page string) ([]string, string, error)) (provider.Changes, string, error) {
+	query := key
 	ctx = withRetryBudget(ctx)
 	cursor := archiveCursor{}
 	if pageToken != "" {
@@ -726,7 +737,7 @@ func (p *Provider) historyPage(ctx context.Context, query, pageToken string) (pr
 	ids, next := cursor.Remaining, cursor.Page
 	if len(ids) == 0 {
 		var err error
-		ids, next, err = p.api.SearchThreads(ctx, query, cursor.Page, 25)
+		ids, next, err = list(ctx, cursor.Page)
 		if err != nil {
 			return provider.Changes{}, pageToken, classify(err)
 		}

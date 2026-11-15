@@ -61,9 +61,11 @@ type AccountEdges struct {
 	Contacts []*Contact `json:"contacts,omitempty"`
 	// Secrets holds the value of the secrets edge.
 	Secrets []*Secret `json:"secrets,omitempty"`
+	// Labels holds the value of the labels edge.
+	Labels []*Label `json:"labels,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [5]bool
+	loadedTypes [6]bool
 }
 
 // ThreadsOrErr returns the Threads value or an error if the edge
@@ -109,6 +111,15 @@ func (e AccountEdges) SecretsOrErr() ([]*Secret, error) {
 		return e.Secrets, nil
 	}
 	return nil, &NotLoadedError{edge: "secrets"}
+}
+
+// LabelsOrErr returns the Labels value or an error if the edge
+// was not loaded in eager-loading.
+func (e AccountEdges) LabelsOrErr() ([]*Label, error) {
+	if e.loadedTypes[5] {
+		return e.Labels, nil
+	}
+	return nil, &NotLoadedError{edge: "labels"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -258,6 +269,11 @@ func (_m *Account) QueryContacts() *ContactQuery {
 // QuerySecrets queries the "secrets" edge of the Account entity.
 func (_m *Account) QuerySecrets() *SecretQuery {
 	return NewAccountClient(_m.config).QuerySecrets(_m)
+}
+
+// QueryLabels queries the "labels" edge of the Account entity.
+func (_m *Account) QueryLabels() *LabelQuery {
+	return NewAccountClient(_m.config).QueryLabels(_m)
 }
 
 // Update returns a builder for updating this Account.

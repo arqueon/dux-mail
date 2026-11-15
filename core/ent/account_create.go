@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/arqueon/dux-mail/core/ent/account"
 	"github.com/arqueon/dux-mail/core/ent/contact"
+	"github.com/arqueon/dux-mail/core/ent/label"
 	"github.com/arqueon/dux-mail/core/ent/notifyrule"
 	"github.com/arqueon/dux-mail/core/ent/pendingop"
 	"github.com/arqueon/dux-mail/core/ent/secret"
@@ -260,6 +261,21 @@ func (_c *AccountCreate) AddSecrets(v ...*Secret) *AccountCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddSecretIDs(ids...)
+}
+
+// AddLabelIDs adds the "labels" edge to the Label entity by IDs.
+func (_c *AccountCreate) AddLabelIDs(ids ...int) *AccountCreate {
+	_c.mutation.AddLabelIDs(ids...)
+	return _c
+}
+
+// AddLabels adds the "labels" edges to the Label entity.
+func (_c *AccountCreate) AddLabels(v ...*Label) *AccountCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddLabelIDs(ids...)
 }
 
 // Mutation returns the AccountMutation object of the builder.
@@ -527,6 +543,22 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(secret.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.LabelsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   account.LabelsTable,
+			Columns: []string{account.LabelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(label.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

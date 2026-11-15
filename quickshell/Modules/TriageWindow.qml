@@ -7,6 +7,7 @@ import qs.Services
 import qs.Widgets
 import "../Common/ThreadSearch.js" as ThreadSearch
 import "../Common/BodyFormatter.js" as BodyFormatter
+import "../Common/Labels.js" as Labels
 
 // Main triage window: unified thread list (left) + plain-text preview
 // (right). Everything here is a view over the daemon: actions enqueue
@@ -229,6 +230,76 @@ FloatingWindow {
         copiedNoticeTimer.restart();
     }
 
+    // ---- labels ------------------------------------------------------------
+
+    property bool labelPanelOpen: false
+    property var expandedLabels: ({})
+    readonly property var labelRows: Labels.treeRows(DankMailService.labelCatalog, expandedLabels)
+
+    function toggleLabelExpanded(name) {
+        const next = Object.assign({}, expandedLabels);
+        if (next[name] === true)
+            delete next[name];
+        else
+            next[name] = true;
+        expandedLabels = next;
+    }
+
+    // Opens a label view: threads.list {labelName} for the cache plus
+    // threads.fetchLabel paging (see DankMailService archive history).
+    function openLabelView(name) {
+        window.flushUndoAction();
+        DankMailService.filterUnread = false;
+        DankMailService.filterStarred = false;
+        DankMailService.filterSnoozed = false;
+        DankMailService.filterArchived = false;
+        DankMailService.filterLabel = "";
+        DankMailService.filterLabelName = name;
+        window.checkedIds = [];
+        DankMailService.currentDraft = null;
+        const next = Object.assign({}, expandedLabels);
+        Labels.ancestorsOf(name).forEach(a => { next[a] = true; });
+        expandedLabels = next;
+        DankMailService.refreshThreads();
+    }
+
+    // Thread objects for the current selection: checked rows, else the open one.
+    function selectionThreads() {
+        const ids = checkedIds.length > 0 ? checkedIds : (selectedThreadId >= 0 ? [selectedThreadId] : []);
+        const out = [];
+        ids.forEach(id => {
+            let t = DankMailService.threads.find(x => x.id === id);
+            if (!t && DankMailService.currentThread && DankMailService.currentThread.id === id)
+                t = DankMailService.currentThread;
+            if (t)
+                out.push(t);
+        });
+        return out;
+    }
+
+    function threadSupportsLabels(t) {
+        return !!t && DankMailService.labelAccounts.some(a => a.id === t.accountId);
+    }
+
+    function openLabelPicker() {
+        if (!DankMailService.labelsAvailable || DankMailService.filterLabel === "DRAFTS")
+            return;
+        labelPicker.open(selectionThreads().filter(t => window.threadSupportsLabels(t)));
+    }
+
+    // "Move to inbox" for the selection (keyboard shortcut): only threads that
+    // are out of the inbox and not spam (spam has its own "Not spam").
+    function moveSelectionToInbox() {
+        if (DankMailService.filterLabel === "DRAFTS")
+            return;
+        const ids = selectionThreads().filter(t => !t.inInbox && (t.labels || []).indexOf("SPAM") === -1).map(t => t.id);
+        if (ids.length === 0)
+            return;
+        window.moveToInbox(ids);
+        if (checkedIds.length > 0)
+            checkedIds = [];
+    }
+
     function triggerUndo() {
         if (!window.undoAction)
             return;
@@ -368,6 +439,7 @@ FloatingWindow {
     }
 
     function openDraftById(draftId) {
+        DankMailService.filterLabelName = "";
         DankMailService.filterUnread = false;
         DankMailService.filterStarred = false;
         DankMailService.filterSnoozed = false;
@@ -431,12 +503,31 @@ FloatingWindow {
     Shortcut {
         sequence: "Escape"
         onActivated: {
+            // The label picker owns Escape while it is open.
+            if (labelPicker.visible) {
+                labelPicker.cancel();
+                return;
+            }
             // First Escape clears an active search; the second hides.
             if (searchField.text !== "")
                 searchField.text = "";
             else
                 window.hideRequested();
         }
+    }
+
+    // Plain-letter shortcuts never fire while a text field has focus (text
+    // fields claim the override for printable keys).
+    Shortcut {
+        sequence: "L"
+        enabled: window.visible && DankMailService.labelsAvailable && !labelPicker.visible
+        onActivated: window.openLabelPicker()
+    }
+
+    Shortcut {
+        sequence: "I"
+        enabled: window.visible && !labelPicker.visible
+        onActivated: window.moveSelectionToInbox()
     }
 
     Shortcut {
@@ -707,7 +798,7 @@ FloatingWindow {
 
                 delegate: StyledRect {
                     required property var modelData
-                    readonly property bool active: (modelData.key === "unread" && DankMailService.filterUnread) || (modelData.key === "starred" && DankMailService.filterStarred) || (modelData.key === "snoozed" && DankMailService.filterSnoozed) || (modelData.key === "archived" && DankMailService.filterArchived) || (modelData.key === "spam" && DankMailService.filterLabel === "SPAM") || (modelData.key === "sent" && DankMailService.filterLabel === "SENT") || (modelData.key === "drafts" && DankMailService.filterLabel === "DRAFTS") || (modelData.key === "all" && !DankMailService.filterUnread && !DankMailService.filterStarred && !DankMailService.filterSnoozed && !DankMailService.filterArchived && DankMailService.filterLabel === "")
+                    readonly property bool active: (modelData.key === "unread" && DankMailService.filterUnread) || (modelData.key === "starred" && DankMailService.filterStarred) || (modelData.key === "snoozed" && DankMailService.filterSnoozed) || (modelData.key === "archived" && DankMailService.filterArchived) || (modelData.key === "spam" && DankMailService.filterLabel === "SPAM") || (modelData.key === "sent" && DankMailService.filterLabel === "SENT") || (modelData.key === "drafts" && DankMailService.filterLabel === "DRAFTS") || (modelData.key === "all" && DankMailService.filterLabelName === "" && !DankMailService.filterUnread && !DankMailService.filterStarred && !DankMailService.filterSnoozed && !DankMailService.filterArchived && DankMailService.filterLabel === "")
 
                     implicitWidth: Math.ceil(filterLabel.contentWidth) + Theme.spacingL
                     implicitHeight: 30
@@ -730,6 +821,7 @@ FloatingWindow {
                         stateColor: Theme.primary
                         onClicked: {
                             window.flushUndoAction();
+                            DankMailService.filterLabelName = "";
                             DankMailService.filterUnread = parent.modelData.key === "unread";
                             DankMailService.filterStarred = parent.modelData.key === "starred";
                             DankMailService.filterSnoozed = parent.modelData.key === "snoozed";
@@ -745,6 +837,45 @@ FloatingWindow {
                             }
                         }
                     }
+                }
+            }
+
+            // Label panel toggle; shows the open label's name while in a
+            // label view. Hidden when no account supports labels.
+            StyledRect {
+                id: labelsChip
+                visible: DankMailService.labelsAvailable
+                readonly property bool active: window.labelPanelOpen || DankMailService.filterLabelName !== ""
+                width: labelsChipRow.implicitWidth + Theme.spacingL
+                height: 30
+                radius: 15
+                color: active ? Theme.primaryContainer : "transparent"
+
+                Row {
+                    id: labelsChipRow
+                    anchors.centerIn: parent
+                    spacing: 4
+
+                    DankIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: "label"
+                        size: 16
+                        color: labelsChip.active ? Theme.onPrimaryContainer : Theme.surfaceTextMedium
+                    }
+
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: DankMailService.filterLabelName !== "" ? Labels.leafOf(DankMailService.filterLabelName) : I18n.tr("Labels", "filter")
+                        textFormat: Text.PlainText
+                        wrapMode: Text.NoWrap
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: labelsChip.active ? Theme.onPrimaryContainer : Theme.surfaceTextMedium
+                    }
+                }
+
+                StateLayer {
+                    stateColor: Theme.primary
+                    onClicked: window.labelPanelOpen = !window.labelPanelOpen
                 }
             }
 
@@ -785,6 +916,13 @@ FloatingWindow {
                     width: 1
                     height: 16
                     color: Theme.outline
+                }
+
+                DankActionButton {
+                    visible: DankMailService.labelsAvailable && DankMailService.filterLabel !== "DRAFTS"
+                    buttonSize: 28
+                    iconName: "label"
+                    onClicked: window.openLabelPicker()
                 }
 
                 // SPAM-specific bulk actions
@@ -917,6 +1055,115 @@ FloatingWindow {
             Layout.fillHeight: true
             spacing: 0
 
+            // Label panel: collapsible tree, merged by name across accounts.
+            Rectangle {
+                id: labelPanel
+                visible: window.labelPanelOpen && DankMailService.labelsAvailable
+                Layout.preferredWidth: visible ? 176 : 0
+                Layout.fillHeight: true
+                color: Theme.surfaceContainerLow
+
+                ListView {
+                    id: labelTree
+                    anchors.fill: parent
+                    anchors.margins: Theme.spacingXS
+                    clip: true
+                    model: window.labelRows
+                    boundsBehavior: Flickable.StopAtBounds
+                    spacing: 1
+
+                    delegate: StyledRect {
+                        id: treeRow
+                        required property var modelData
+                        readonly property bool active: modelData.selectable && DankMailService.filterLabelName === modelData.name
+
+                        width: labelTree.width
+                        height: 30
+                        radius: Theme.cornerRadiusSmall
+                        color: active ? Theme.primaryContainer : "transparent"
+
+                        Row {
+                            anchors.fill: parent
+                            anchors.leftMargin: Theme.spacingXS + treeRow.modelData.depth * 14
+                            anchors.rightMargin: Theme.spacingXS
+                            spacing: 2
+
+                            Item {
+                                width: 22
+                                height: parent.height
+
+                                DankIcon {
+                                    anchors.centerIn: parent
+                                    visible: treeRow.modelData.hasChildren
+                                    name: treeRow.modelData.expanded ? "expand_more" : "chevron_right"
+                                    size: 18
+                                    color: treeRow.active ? Theme.onPrimaryContainer : Theme.surfaceTextMedium
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 8
+                                height: 8
+                                radius: 4
+                                visible: treeRow.modelData.selectable
+                                color: treeRow.modelData.colorBg !== "" ? treeRow.modelData.colorBg : Theme.outlineMedium
+                            }
+
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 22 - 8 - parent.spacing * 2
+                                text: treeRow.modelData.leaf
+                                textFormat: Text.PlainText
+                                elide: Text.ElideRight
+                                maximumLineCount: 1
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: treeRow.modelData.selectable ? Font.Normal : Font.Medium
+                                color: treeRow.active ? Theme.onPrimaryContainer : (treeRow.modelData.selectable ? Theme.surfaceText : Theme.surfaceTextMedium)
+                            }
+                        }
+
+                        StateLayer {
+                            stateColor: Theme.primary
+                            onClicked: {
+                                if (treeRow.modelData.selectable)
+                                    window.openLabelView(treeRow.modelData.name);
+                                else
+                                    window.toggleLabelExpanded(treeRow.modelData.name);
+                            }
+                            onEntered: windowTooltip.show(treeRow, treeRow.modelData.name, "bottom")
+                            onExited: windowTooltip.hide(treeRow)
+                        }
+
+                        // Declared after the StateLayer so the chevron takes
+                        // its own clicks (expand without opening the view).
+                        MouseArea {
+                            visible: treeRow.modelData.hasChildren
+                            x: Theme.spacingXS + treeRow.modelData.depth * 14
+                            width: 24
+                            height: parent.height
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: window.toggleLabelExpanded(treeRow.modelData.name)
+                        }
+                    }
+
+                    StyledText {
+                        anchors.centerIn: parent
+                        visible: window.labelRows.length === 0
+                        text: I18n.tr("No labels yet", "label panel")
+                        color: Theme.surfaceTextMedium
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: labelPanel.visible
+                Layout.preferredWidth: visible ? 1 : 0
+                Layout.fillHeight: true
+                color: Theme.outlineMedium
+            }
+
             // Thread list.
             Item {
                 Layout.preferredWidth: 400
@@ -983,8 +1230,10 @@ FloatingWindow {
                         StyledText {
                             width: parent.width - 2 * Theme.spacingS
                             wrapMode: Text.Wrap
-                            visible: (DankMailService.filterArchived || DankMailService.filterLabel === "SENT") && (DankMailService.archiveWarning !== "" || DankMailService.archiveUnsupported)
-                            text: DankMailService.filterLabel === "SENT"
+                            visible: (DankMailService.filterArchived || DankMailService.filterLabel === "SENT" || DankMailService.filterLabelName !== "") && (DankMailService.archiveWarning !== "" || DankMailService.archiveUnsupported)
+                            text: DankMailService.filterLabelName !== ""
+                                ? (DankMailService.archiveUnsupported ? I18n.tr("This account only supports cached mail with this label.", "search") : I18n.tr("Could not load mail with this label. Try again later.", "search"))
+                                : DankMailService.filterLabel === "SENT"
                                 ? (DankMailService.archiveUnsupported ? I18n.tr("This account only supports cached sent mail.", "search") : I18n.tr("Could not load sent mail. Try again later.", "search"))
                                 : DankMailService.archiveUnsupported
                                 ? I18n.tr("This account only supports cached archived mail.", "search")
@@ -993,7 +1242,7 @@ FloatingWindow {
                         }
 
                         StyledRect {
-                            visible: (DankMailService.filterArchived || DankMailService.filterLabel === "SENT") && DankMailService.archiveHasMore
+                            visible: (DankMailService.filterArchived || DankMailService.filterLabel === "SENT" || DankMailService.filterLabelName !== "") && DankMailService.archiveHasMore
                             width: archiveMoreLabel.implicitWidth + Theme.spacingXL
                             height: 36
                             radius: 18
@@ -1002,7 +1251,9 @@ FloatingWindow {
                             StyledText {
                                 id: archiveMoreLabel
                                 anchors.centerIn: parent
-                                text: DankMailService.filterLabel === "SENT"
+                                text: DankMailService.filterLabelName !== ""
+                                    ? (DankMailService.archiveLoading ? I18n.tr("Loading labeled mail…", "search") : DankMailService.archiveWarning !== "" ? I18n.tr("Retry labeled mail", "search") : I18n.tr("Load older labeled mail", "search"))
+                                    : DankMailService.filterLabel === "SENT"
                                     ? (DankMailService.archiveLoading ? I18n.tr("Loading sent mail…", "search") : DankMailService.archiveWarning !== "" ? I18n.tr("Retry sent mail", "search") : I18n.tr("Load older sent mail", "search"))
                                     : DankMailService.archiveLoading
                                     ? I18n.tr("Loading archived mail…", "search")
@@ -1029,9 +1280,11 @@ FloatingWindow {
 
                         readonly property bool selected: modelData.id === window.selectedThreadId
                         readonly property bool isHidden: window.temporarilyHiddenIds.indexOf(modelData.id) !== -1
+                        readonly property var chipInfo: Labels.threadChips(DankMailService.labelCatalog, modelData, 3)
+                        readonly property int baseHeight: chipInfo.chips.length > 0 ? 98 : 76
 
                         width: threadList.width
-                        height: isHidden ? 0 : Math.max(76, (rowActions.visible && rowActions.snoozing) ? rowActions.height + Theme.spacingXS * 2 : 76)
+                        height: isHidden ? 0 : Math.max(baseHeight, (rowActions.visible && rowActions.snoozing) ? rowActions.height + Theme.spacingXS * 2 : baseHeight)
                         visible: !isHidden
                         clip: true
                         color: selected ? Theme.surfaceSelected : "transparent"
@@ -1151,6 +1404,37 @@ FloatingWindow {
                                     font.pixelSize: Theme.fontSizeSmall
                                     color: Theme.surfaceTextMedium
                                     maximumLineCount: 1
+                                }
+
+                                // Label chips: leaf name, full path on hover.
+                                Row {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: visible ? 18 : 0
+                                    visible: row.chipInfo.chips.length > 0
+                                    spacing: Theme.spacingXS
+                                    clip: true
+
+                                    Repeater {
+                                        model: row.chipInfo.chips
+
+                                        delegate: LabelChip {
+                                            id: rowChip
+                                            required property var modelData
+                                            name: modelData.name
+                                            colorBg: modelData.colorBg
+                                            colorText: modelData.colorText
+                                            maxTextWidth: 96
+                                            onHoverChanged: hovered => hovered ? windowTooltip.show(rowChip, rowChip.name, "bottom") : windowTooltip.hide(rowChip)
+                                        }
+                                    }
+
+                                    LabelChip {
+                                        id: rowMoreChip
+                                        visible: row.chipInfo.more > 0
+                                        text: "+" + row.chipInfo.more
+                                        name: row.chipInfo.moreNames.join(", ")
+                                        onHoverChanged: hovered => hovered ? windowTooltip.show(rowMoreChip, rowMoreChip.name, "bottom") : windowTooltip.hide(rowMoreChip)
+                                    }
                                 }
                             }
 
@@ -1608,6 +1892,8 @@ FloatingWindow {
                                 return I18n.tr("No sent mail", "empty state");
                             if (DankMailService.filterSnoozed)
                                 return I18n.tr("No snoozed mail", "empty state");
+                            if (DankMailService.filterLabelName !== "")
+                                return I18n.tr("No mail with this label", "empty state");
                             if (DankMailService.filterArchived)
                                 return I18n.tr("No archived mail", "empty state");
                             return I18n.tr("Inbox zero", "empty state");
@@ -1684,6 +1970,41 @@ FloatingWindow {
                                 if (DankMailService.currentThread && DankMailService.currentThread.subject)
                                     window.copyWithFeedback(DankMailService.currentThread.subject);
                             }
+                        }
+                    }
+
+                    // Label chips of the open thread (click opens the label view).
+                    Flow {
+                        id: headerChips
+                        readonly property var info: Labels.threadChips(DankMailService.labelCatalog, DankMailService.currentThread, 8)
+                        Layout.fillWidth: true
+                        visible: info.chips.length > 0
+                        spacing: Theme.spacingXS
+
+                        Repeater {
+                            model: headerChips.info.chips
+
+                            delegate: LabelChip {
+                                id: headChip
+                                required property var modelData
+                                name: modelData.name
+                                colorBg: modelData.colorBg
+                                colorText: modelData.colorText
+                                chipHeight: 22
+                                maxTextWidth: 200
+                                clickable: true
+                                onClicked: window.openLabelView(headChip.name)
+                                onHoverChanged: hovered => hovered ? windowTooltip.show(headChip, headChip.name, "bottom") : windowTooltip.hide(headChip)
+                            }
+                        }
+
+                        LabelChip {
+                            id: headMoreChip
+                            visible: headerChips.info.more > 0
+                            chipHeight: 22
+                            text: "+" + headerChips.info.more
+                            name: headerChips.info.moreNames.join(", ")
+                            onHoverChanged: hovered => hovered ? windowTooltip.show(headMoreChip, headMoreChip.name, "bottom") : windowTooltip.hide(headMoreChip)
                         }
                     }
 
@@ -2220,6 +2541,12 @@ FloatingWindow {
                                     return;
                                 t.starred ? DankMailService.unstar([t.id]) : DankMailService.star([t.id]);
                             }
+                        }
+
+                        DankActionButton {
+                            visible: window.threadSupportsLabels(DankMailService.currentThread)
+                            iconName: "label"
+                            onClicked: window.openLabelPicker()
                         }
 
                         DankActionButton {
@@ -3616,6 +3943,11 @@ FloatingWindow {
                 }
             }
         }
+    }
+
+    LabelPicker {
+        id: labelPicker
+        anchors.fill: parent
     }
 
     DankTooltip {

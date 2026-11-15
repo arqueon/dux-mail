@@ -28,6 +28,7 @@ func (PendingOp) Fields() []ent.Field {
 			"archive", "unarchive", "trash", "unspam", "spam",
 			"snooze", "snooze_wake",
 			"send_reply", "compose",
+			"label",
 		),
 		// Op-specific data: ReplyDraft/ComposeDraft JSON, snooze deadline,
 		// pre-op thread state for revert on failure.

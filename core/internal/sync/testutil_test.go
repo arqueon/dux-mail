@@ -106,6 +106,12 @@ type fakeProvider struct {
 	spammed    [][]string
 	replies    []provider.ReplyDraft
 	composed   []provider.ComposeDraft
+	labelCalls []labelCall
+}
+
+type labelCall struct {
+	ids         []string
+	add, remove []string
 }
 
 func newFakeProvider(accountID string) *fakeProvider {
@@ -127,7 +133,27 @@ func (f *fakeProvider) errFor(method string) error {
 func (f *fakeProvider) ID() string { return f.accountID }
 func (f *fakeProvider) Capabilities() provider.Capability {
 	return provider.CapModifyFlags | provider.CapArchive | provider.CapTrash |
-		provider.CapSendReply | provider.CapCompose | provider.CapHistorySync
+		provider.CapSendReply | provider.CapCompose | provider.CapHistorySync | provider.CapLabels
+}
+
+func (f *fakeProvider) ListLabels(context.Context) ([]provider.Label, error) { return nil, nil }
+func (f *fakeProvider) CreateLabel(_ context.Context, l provider.Label) (provider.Label, error) {
+	return l, nil
+}
+func (f *fakeProvider) UpdateLabel(_ context.Context, l provider.Label) (provider.Label, error) {
+	return l, nil
+}
+func (f *fakeProvider) DeleteLabel(context.Context, string) error { return nil }
+func (f *fakeProvider) LabelPalette() []provider.LabelColor       { return nil }
+
+func (f *fakeProvider) ModifyLabels(_ context.Context, ids []string, add, remove []string) error {
+	if err := f.errFor("ModifyLabels"); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.labelCalls = append(f.labelCalls, labelCall{ids: ids, add: add, remove: remove})
+	return nil
 }
 
 func (f *fakeProvider) Sync(ctx context.Context, cursor string) (provider.Changes, string, error) {

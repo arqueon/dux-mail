@@ -221,3 +221,62 @@ func decodeBase64URLBytes(data string) ([]byte, error) {
 	}
 	return base64.RawURLEncoding.DecodeString(data)
 }
+
+func (r *realAPI) ListLabels(ctx context.Context) ([]*gmailv1.Label, error) {
+	resp, err := readCall(ctx, r, 1, func() (*gmailv1.ListLabelsResponse, error) {
+		return r.svc.Users.Labels.List(userID).Context(ctx).Do()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Labels, nil
+}
+
+func (r *realAPI) CreateLabel(ctx context.Context, l *gmailv1.Label) (*gmailv1.Label, error) {
+	if err := r.waitQuota(ctx, 5); err != nil {
+		return nil, err
+	}
+	out, err := r.svc.Users.Labels.Create(userID, l).Context(ctx).Do()
+	if deferred := r.deferFailure(err, 0); deferred != nil {
+		return nil, deferred
+	}
+	return out, err
+}
+
+func (r *realAPI) PatchLabel(ctx context.Context, id string, l *gmailv1.Label) (*gmailv1.Label, error) {
+	if err := r.waitQuota(ctx, 5); err != nil {
+		return nil, err
+	}
+	out, err := r.svc.Users.Labels.Patch(userID, id, l).Context(ctx).Do()
+	if deferred := r.deferFailure(err, 0); deferred != nil {
+		return nil, deferred
+	}
+	return out, err
+}
+
+func (r *realAPI) DeleteLabel(ctx context.Context, id string) error {
+	if err := r.waitQuota(ctx, 5); err != nil {
+		return err
+	}
+	err := r.svc.Users.Labels.Delete(userID, id).Context(ctx).Do()
+	if deferred := r.deferFailure(err, 0); deferred != nil {
+		return deferred
+	}
+	return err
+}
+
+func (r *realAPI) ListLabelThreads(ctx context.Context, labelID, pageToken string, pageSize int) ([]string, string, error) {
+	call := r.svc.Users.Threads.List(userID).LabelIds(labelID).MaxResults(int64(pageSize)).Context(ctx)
+	if pageToken != "" {
+		call = call.PageToken(pageToken)
+	}
+	resp, err := readCall(ctx, r, 10, func() (*gmailv1.ListThreadsResponse, error) { return call.Do() })
+	if err != nil {
+		return nil, "", err
+	}
+	ids := make([]string, 0, len(resp.Threads))
+	for _, t := range resp.Threads {
+		ids = append(ids, t.Id)
+	}
+	return ids, resp.NextPageToken, nil
+}

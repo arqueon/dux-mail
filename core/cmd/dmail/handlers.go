@@ -40,8 +40,9 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 	deps := server.Deps{Repo: d.repo, Version: Version, DND: d.dnd.Load}
 
 	srv.Register("accounts.list", func(ctx context.Context, _ map[string]any) (any, error) {
-		return d.repo.Accounts(ctx)
+		return d.accountViews(ctx)
 	})
+	d.registerLabelIPC(srv)
 
 	srv.Register("threads.list", func(ctx context.Context, p map[string]any) (any, error) {
 		f := repo.ThreadFilter{}
@@ -52,6 +53,7 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 		f.SentOnly, _ = p["sent"].(bool)
 		f.SnoozedOnly, _ = p["snoozed"].(bool)
 		f.Label, _ = p["label"].(string)
+		f.LabelName, _ = p["labelName"].(string)
 		f.Query, _ = p["query"].(string)
 		if f.SnoozedOnly {
 			// Snoozed threads are archived locally until their wake timer fires.
@@ -63,6 +65,9 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 		}
 		if f.Label != "" {
 			// Labeled views (e.g. spam) live outside the inbox.
+			f.InboxOnly = false
+		}
+		if f.LabelName != "" {
 			f.InboxOnly = false
 		}
 		if f.Label == "SPAM" {

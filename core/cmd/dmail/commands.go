@@ -129,6 +129,7 @@ func init() {
 				return callSimple("ui.openLink", map[string]any{"id": id})
 			}},
 		accountCmd(),
+		labelCmd(),
 		configCmd(),
 		sendCmd(),
 		mcpCmd(),

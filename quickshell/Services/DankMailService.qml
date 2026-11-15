@@ -8,6 +8,7 @@ import qs.Common
 import qs.Services
 import "../Common/ThreadSearch.js" as ThreadSearch
 import "../Common/ArchiveHistory.js" as ArchiveHistory
+import "../Common/Labels.js" as Labels
 
 // NOTE: responses may arrive out of order (the daemon dispatches each
 // request on its own goroutine so long-running calls like the OAuth
@@ -55,6 +56,9 @@ Singleton {
     property string filterAccount: ""
     // Provider label view ("SPAM" for the spam-review tab; "" = inbox).
     property string filterLabel: ""
+    // User label view, by NAME (merged across accounts; "" = none). The
+    // daemon resolves the name to each account's label ID.
+    property string filterLabelName: ""
     // searchQuery sweeps the whole local cache (subject/sender/snippet/
     // body); empty = normal inbox view. Full-history search continues in
     // the webmail via openWebSearch.
@@ -66,12 +70,24 @@ Singleton {
     onFilterArchivedChanged: { invalidateThreadSearch(); resetArchiveHistory(); }
     onFilterSnoozedChanged: invalidateThreadSearch()
     onFilterAccountChanged: { invalidateThreadSearch(); resetArchiveHistory(); refreshDrafts(true); }
+    onFilterLabelNameChanged: { invalidateThreadSearch(); resetArchiveHistory(); }
     onFilterLabelChanged: {
         invalidateThreadSearch();
         resetArchiveHistory();
         if (filterLabel === "DRAFTS")
             refreshDrafts(true);
     }
+
+    // ---- labels ---------------------------------------------------------
+    // labels.list result as sent by the daemon (LabelView rows).
+    property var labelCatalogRaw: []
+    // Same rows restricted to accounts whose provider has the labels
+    // capability (Labels.accountHasLabels is the single capability check).
+    readonly property var labelCatalog: Labels.gateCatalog(labelCatalogRaw, accounts)
+    readonly property bool labelsAvailable: accounts.some(a => Labels.accountHasLabels(a))
+    readonly property var labelAccounts: accounts.filter(a => Labels.accountHasLabels(a))
+    // account id -> [{background, text}] from labels.palette.
+    property var labelPalettes: ({})
 
     readonly property int unreadTotal: {
         let n = 0;
@@ -360,7 +376,11 @@ Singleton {
         case "account.auth":
         case "accounts.changed":
             refreshAccounts();
+            refreshLabels(false);
             refreshDebounce.restart();
+            break;
+        case "labels.changed":
+            refreshLabels(false);
             break;
         case "dnd.changed":
             dndEnabled = !!(event.payload && event.payload.enabled);
@@ -440,6 +460,7 @@ Singleton {
     function refreshAll() {
         resetArchiveHistory();
         refreshAccounts();
+        refreshLabels(false);
         refreshThreads();
         refreshDrafts(true);
         refreshDnd();
@@ -535,6 +556,19 @@ Singleton {
         });
     }
 
+    // threads.list params: the mailbox filters plus, in a label view, the
+    // label scope (labelName, or account + label ID) and "not inbox-only".
+    // Kept apart from threadFilterParams, which scripts/test-thread-search.cjs
+    // evaluates in isolation.
+    function listParams() {
+        const params = threadFilterParams();
+        if (filterLabelName !== "") {
+            params.inbox = false;
+            Object.assign(params, Labels.viewParams(labelCatalog, filterLabelName, filterAccount));
+        }
+        return params;
+    }
+
     function threadFilterParams() {
         const params = {
             // Starred and Snoozed are mailbox-wide views. Keeping inbox=true
@@ -574,11 +608,11 @@ Singleton {
     }
 
     function invalidateThreadSearch() {
-        threadSearchController().setFilters(threadFilterParams());
+        threadSearchController().setFilters(listParams());
     }
 
     function refreshThreads() {
-        threadSearchController().refresh(threadFilterParams());
+        threadSearchController().refresh(listParams());
     }
 
     property var _archiveHistory: null
@@ -590,19 +624,29 @@ Singleton {
     function archiveHistoryController() {
         if (!_archiveHistory)
             _archiveHistory = ArchiveHistory.create(
-                (params, callback) => root.sendRequest(root.filterLabel === "SENT" ? "threads.fetchSent" : "threads.fetchArchived", params, callback),
+                (params, callback) => {
+                    if (root.filterLabelName !== "") {
+                        // account is replaced by the label view's own scoping.
+                        const p = Object.assign({}, params);
+                        delete p.account;
+                        Object.assign(p, Labels.viewParams(root.labelCatalog, root.filterLabelName, root.filterAccount));
+                        root.sendRequest("threads.fetchLabel", p, callback);
+                        return;
+                    }
+                    root.sendRequest(root.filterLabel === "SENT" ? "threads.fetchSent" : "threads.fetchArchived", params, callback);
+                },
                 (loading, more, warning, unsupported) => {
                     root.archiveLoading = loading;
                     root.archiveHasMore = more;
                     root.archiveWarning = warning;
                     root.archiveUnsupported = unsupported;
-                    if (warning) root.log.warn("threads.fetchArchived:", warning);
+                    if (warning) root.log.warn("threads.fetch (history):", warning);
                 }, () => root.refreshThreads());
         return _archiveHistory;
     }
 
     function resetArchiveHistory() {
-        archiveHistoryController().reset(filterAccount, connected && (filterArchived || filterLabel === "SENT"));
+        archiveHistoryController().reset(filterAccount, connected && (filterArchived || filterLabel === "SENT" || filterLabelName !== ""));
     }
 
     function loadArchiveHistory() {
@@ -674,6 +718,117 @@ Singleton {
     }
     function trash(ids) {
         _op("ops.trash", ids);
+    }
+
+    // ---- labels ----------------------------------------------------------
+
+    function refreshLabels(remote) {
+        if (!connected)
+            return;
+        sendRequest("labels.list", remote ? { "refresh": true } : {}, resp => {
+            if (resp.error) {
+                log.warn("labels.list:", resp.error);
+                return;
+            }
+            labelCatalogRaw = resp.result || [];
+            // A deleted label leaves its view empty: fall back to the inbox.
+            if (filterLabelName !== "" && !Labels.nameExists(labelCatalog, filterLabelName))
+                filterLabelName = "";
+        });
+    }
+
+    // Apply/remove labels on threads. add/remove hold label NAMES (the
+    // daemon resolves them per thread account).
+    function opLabel(ids, add, remove, callback) {
+        const params = { "ids": ids };
+        if (add && add.length > 0)
+            params.add = add;
+        if (remove && remove.length > 0)
+            params.remove = remove;
+        sendRequest("ops.label", params, resp => {
+            if (resp.error)
+                opFailed("ops.label", resp.error);
+            refreshDebounce.restart();
+            if (callback)
+                callback(resp);
+        });
+    }
+
+    function createLabel(accountId, name, colorBg, colorText, callback) {
+        const params = { "account": accountId, "name": name };
+        if (colorBg)
+            params.colorBg = colorBg;
+        if (colorText)
+            params.colorText = colorText;
+        sendRequest("labels.create", params, resp => {
+            if (resp.error)
+                log.warn("labels.create:", resp.error);
+            else
+                refreshLabels(false);
+            if (callback)
+                callback(resp);
+        });
+    }
+
+    // fields: any of {name, colorBg, colorText}.
+    function updateLabel(accountId, id, fields, callback) {
+        const params = Object.assign({ "account": accountId, "id": id }, fields);
+        sendRequest("labels.update", params, resp => {
+            if (resp.error)
+                log.warn("labels.update:", resp.error);
+            else
+                refreshLabels(false);
+            if (callback)
+                callback(resp);
+        });
+    }
+
+    function deleteLabel(accountId, id, callback) {
+        sendRequest("labels.delete", { "account": accountId, "id": id }, resp => {
+            if (resp.error)
+                log.warn("labels.delete:", resp.error);
+            else {
+                refreshLabels(false);
+                refreshDebounce.restart();
+            }
+            if (callback)
+                callback(resp);
+        });
+    }
+
+    // Allowed (background, text) pairs of an account; cached.
+    function loadLabelPalette(accountId, callback) {
+        if (labelPalettes[accountId]) {
+            if (callback)
+                callback(labelPalettes[accountId]);
+            return;
+        }
+        sendRequest("labels.palette", { "account": accountId }, resp => {
+            if (resp.error) {
+                log.warn("labels.palette:", resp.error);
+                return;
+            }
+            const next = Object.assign({}, labelPalettes);
+            next[accountId] = resp.result || [];
+            labelPalettes = next;
+            if (callback)
+                callback(next[accountId]);
+        });
+    }
+
+    // Flip "Always sync" for one label: the catalog flips at once (so quick
+    // consecutive toggles build on each other) and rolls back on error.
+    function setLabelMonitored(accountId, labelId, on, callback) {
+        const ids = Labels.monitoredAfter(labelCatalogRaw, accountId, labelId, on);
+        labelCatalogRaw = Labels.withMonitored(labelCatalogRaw, accountId, labelId, on);
+        sendRequest("accounts.setMonitoredLabels", { "account": accountId, "labels": ids }, resp => {
+            if (resp.error) {
+                log.warn("accounts.setMonitoredLabels:", resp.error);
+                refreshLabels(false);
+            }
+            if (callback)
+                callback(resp);
+        });
     }
 
     function snooze(ids, untilDate) {

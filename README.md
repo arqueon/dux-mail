@@ -17,7 +17,7 @@
 |---|---|---|
 | **Dux Mail** (desktop app) | Standalone mail-triage desktop app: `dmail` daemon, CLI (`dmail list`, `dmail send`, …), and Quickshell UI. Works on any Wayland compositor or headlessly over SSH. | Go, Quickshell (UI optional) |
 | **Dux Mail Unread** (bar plugin) | Optional Dux Shell / DankMaterialShell bar widget (unread capsules, filterable account dots, Inbox/Starred/Drafts triage popout) connected to `dmail`. | Dux Shell ≥ 2.0 + `dux-mail` |
-| **`dmail mcp`** (MCP server) | Native JSON-RPC 2.0 `stdio` Model Context Protocol server exposing 27 mail tools to Claude Code, Gemini/Antigravity, Codex, OpenCode, and other local agents without browser automation or OAuth token exposure. | `dmail` binary |
+| **`dmail mcp`** (MCP server) | Native JSON-RPC 2.0 `stdio` Model Context Protocol server exposing 32 mail tools to Claude Code, Gemini/Antigravity, Codex, OpenCode, and other local agents without browser automation or OAuth token exposure. | `dmail` binary |
 
 Plugin source lives in [`dms-plugin/`](dms-plugin). On Arch Linux, install `dux-mail` and optionally `dms-shell-plugin-dux-mail` (both transparently replace the former `dankmail` packages and migrate existing `~/.config/dankmail`, `~/.local/share/dankmail`, and keyring credentials automatically).
 
@@ -64,10 +64,12 @@ Modern email clients distract you with tracking pixels, remote scripts, and heav
 
 | Flag | Allowed capabilities |
 |---|---|
-| `--mode full` *(default)* | All 27 tools: read, local & remote search, attachment fetch/save, triage (archive/read/star/snooze/spam/trash), drafts, and direct `send_email` / `reply_thread` / `forward_thread`. |
-| `--mode draft` | Read, search, attachments, non-destructive triage, and creating/updating/deleting drafts (blocks direct sending and trashing). |
+| `--mode full` *(default)* | All 32 tools: read, local & remote search, attachment fetch/save, triage (archive/read/star/snooze/spam/trash), labels (list, apply, create, rename/recolor, delete), drafts, and direct `send_email` / `reply_thread` / `forward_thread`. |
+| `--mode draft` | Read, search, attachments, non-destructive triage, applying/removing labels (`label_threads`), and creating/updating/deleting drafts (blocks direct sending, trashing, and creating/renaming/deleting labels). |
 | `--mode draft-strict` | Read, search, attachments, and creating/updating drafts only (blocks triage mutations, draft deletion, and sending). |
 | `--mode readonly` | Read, list, local/remote search, contacts, and attachment inspection only. |
+
+Label tools (Gmail accounts): `list_labels` (every mode), `label_threads` (`draft` and `full`), and `create_label`, `update_label`, `delete_label` (`full` only; deleting a label is irreversible and removes it from every thread, but never deletes mail). `list_threads` and `search_mail` accept a `label` argument (name or ID) and return each thread's `labelNames`.
 
 All message bodies, snippets, and text attachment previews returned to agents are wrapped in `<untrusted_email_content>` / `<untrusted_attachment_content>` boundaries to mitigate indirect prompt injection.
 
@@ -129,6 +131,15 @@ dmail send --to client@example.org --subject "Invoice" --html-file invoice.html 
 
 # Trigger a manual sync across all accounts
 dmail sync
+
+# Labels (Gmail accounts): list, create/rename/recolor/delete, apply to threads
+dmail label list
+dmail label create "Auto/Compras" --color "#16a765:#ffffff"
+dmail label rename "Auto/Compras" "Auto/Shopping"
+dmail label color "Auto/Shopping" none
+dmail label add "Auto/Shopping" 1042 1043
+dmail label remove "Auto/Shopping" 1043
+dmail label delete "Auto/Shopping"     # asks first; --yes to skip. Mail is never deleted.
 ```
 
 ---
