@@ -8,6 +8,7 @@ import qs.Widgets
 import "../Common/ThreadSearch.js" as ThreadSearch
 import "../Common/BodyFormatter.js" as BodyFormatter
 import "../Common/Labels.js" as Labels
+import "../Common/Selection.js" as Selection
 
 // Main triage window: unified thread list (left) + plain-text preview
 // (right). Everything here is a view over the daemon: actions enqueue
@@ -139,6 +140,20 @@ FloatingWindow {
 
     // Selections for bulk operations.
     property var checkedIds: []
+
+    // "Select all" covers the loaded rows of the current list (see
+    // Common/Selection.js); pressing it again clears them.
+    readonly property var selectableThreadIds: Selection.selectableIds(DankMailService.threads, temporarilyHiddenIds)
+    readonly property bool allThreadsChecked: Selection.allSelected(checkedIds, selectableThreadIds)
+
+    function toggleSelectAll() {
+        if (DankMailService.filterLabel === "DRAFTS")
+            return;
+        checkedIds = Selection.toggleAll(checkedIds, selectableThreadIds);
+    }
+
+    // Width of the strip that marks which account a row belongs to.
+    readonly property int accountStripWidth: 6
 
     function toggleSpamChecked(id) {
         const i = checkedIds.indexOf(id);
@@ -530,6 +545,14 @@ FloatingWindow {
         onActivated: window.moveSelectionToInbox()
     }
 
+    // Text fields claim Ctrl+A for their own "select all text", so this only
+    // fires when the list has the keyboard.
+    Shortcut {
+        sequence: "Ctrl+A"
+        enabled: window.visible && !labelPicker.visible && DankMailService.filterLabel !== "DRAFTS"
+        onActivated: window.toggleSelectAll()
+    }
+
     Shortcut {
         sequence: "Ctrl+R"
         onActivated: DankMailService.syncNow()
@@ -902,6 +925,23 @@ FloatingWindow {
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.DemiBold
                     color: Theme.primary
+                }
+
+                DankActionButton {
+                    id: selectAllButton
+                    objectName: "selectAllButton"
+                    readonly property string tooltipLabel: window.allThreadsChecked ? I18n.tr("Deselect all", "bulk action") : I18n.tr("Select all", "bulk action")
+                    buttonSize: 28
+                    iconName: window.allThreadsChecked ? "deselect" : "select_all"
+                    iconColor: Theme.primary
+                    onClicked: {
+                        // Deselecting everything hides this toolbar; do not
+                        // leave the tooltip behind.
+                        windowTooltip.hide(selectAllButton);
+                        window.toggleSelectAll();
+                    }
+                    onEntered: windowTooltip.show(selectAllButton, selectAllButton.tooltipLabel, "bottom")
+                    onExited: windowTooltip.hide(selectAllButton)
                 }
 
                 DankActionButton {
@@ -1293,7 +1333,7 @@ FloatingWindow {
                             anchors.left: parent.left
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
-                            width: 3
+                            width: window.accountStripWidth
                             color: DankMailService.accountColor(row.modelData.accountId)
                         }
 
@@ -1730,7 +1770,7 @@ FloatingWindow {
                             anchors.left: parent.left
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
-                            width: 3
+                            width: window.accountStripWidth
                             color: DankMailService.accountColor(draftRow.modelData.accountId)
                         }
 

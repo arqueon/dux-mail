@@ -15,6 +15,10 @@ All notable changes to **Dux Mail** (`dux-mail`, formerly **DankMail** — `dmai
   - English source strings with `es` and `pt` overrides for the new CLI output.
   - Triage window: label chips on thread rows and in the open thread header; a **Labels** panel with the label tree (merged by name across accounts, nested by `/`) whose views page archived threads on demand; a label picker on `l` for one or several threads (search, toggle, apply, create inline); **Manage labels** in Settings (create, rename, recolor from the Gmail palette or remove the color, delete with confirmation, and an **Always sync** toggle per label). All of it is hidden for accounts without the labels capability.
   - Keyboard shortcut `i` moves the selected archived threads back to the inbox in any non-inbox view.
+- **Select all** in the triage list: once a thread is checked, the bulk toolbar offers a select-all button (also `Ctrl+A`) that checks every loaded thread of the current view; pressing it again clears them.
+
+### Changed
+- The strip that marks which account a thread or draft row belongs to is twice as wide (6 px).
 
 ## [0.5.1] - 2026-11-13
 

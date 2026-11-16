@@ -25,7 +25,9 @@
     "(no recipients)": "(sem destinatários)"
   },
   "bulk action": {
-    "%1 selected": "%1 selecionadas"
+    "%1 selected": "%1 selecionadas",
+    "Select all": "Selecionar tudo",
+    "Deselect all": "Limpar a seleção"
   },
   "header status": {
     "Daemon offline": "Daemon desconectado"
