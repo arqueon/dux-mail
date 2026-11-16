@@ -1,6 +1,6 @@
 # Labels (v0.6.0)
 
-Status: approved 2026-11-15 (`.revision/etiquetas-2026-11-15.md`). Gmail only in
+Status: shipped in v0.6.0; approved 2026-11-15 (`.revision/etiquetas-2026-11-15.md`). Gmail only in
 this release; IMAP and Microsoft do not declare the capability and the UI hides
 every label affordance for them.
 

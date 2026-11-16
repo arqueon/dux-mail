@@ -2,7 +2,7 @@
 
 All notable changes to **Dux Mail** (`dux-mail`, formerly **DankMail** — `dmail` daemon, `dmail mcp` server, Quickshell UI, and the `dankmailUnread` / **Dux Mail Unread** Dux Shell companion) are documented in this file.
 
-## [0.6.0] - Unreleased
+## [0.6.0] - 2026-11-15
 
 ### Added
 - **Labels (Gmail accounts)** — see `docs/design/labels.md`:
