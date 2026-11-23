@@ -215,8 +215,15 @@ func writeBodyEntity(buf *bytes.Buffer, plainText, htmlDoc string, isMultipart b
 
 func resolveAttachment(a provider.AttachmentFile) (filename, mimeType string, data []byte, err error) {
 	data = a.Data
-	if len(data) == 0 && a.Path != "" {
-		cleanPath := strings.TrimPrefix(a.Path, "file://")
+	if len(data) == 0 {
+		cleanPath := strings.TrimPrefix(strings.TrimSpace(a.Path), "file://")
+		if cleanPath == "" {
+			name := a.Filename
+			if name == "" {
+				name = "attachment.bin"
+			}
+			return "", "", nil, fmt.Errorf("attachment %q has no file path or payload", name)
+		}
 		data, err = os.ReadFile(cleanPath)
 		if err != nil {
 			return "", "", nil, fmt.Errorf("read attachment %s: %w", filepath.Base(cleanPath), err)

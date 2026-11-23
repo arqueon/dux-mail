@@ -385,3 +385,29 @@ func TestBuildComposePlainFormatSuppressesMarkdownHTML(t *testing.T) {
 		t.Fatalf("Format=plain should emit pure text/plain, got:\n%s", s)
 	}
 }
+
+func TestBuildRejectsAttachmentWithoutSource(t *testing.T) {
+	_, err := BuildCompose(self, provider.ComposeDraft{
+		To:      []string{"ada@example.com"},
+		Subject: "Empty attachment source",
+		Body:    "hola",
+		Attachments: []provider.AttachmentFile{
+			{Filename: "missing.pdf", MimeType: "application/pdf", Size: 123},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "no file path or payload") {
+		t.Fatalf("expected BuildCompose to fail closed on unresolved attachment, got err=%v", err)
+	}
+
+	_, err = BuildDraft(self, provider.DraftSave{
+		To:      []string{"ada@example.com"},
+		Subject: "Draft with empty attachment source",
+		Body:    "hola",
+		Attachments: []provider.AttachmentFile{
+			{Filename: "missing.docx", Size: 456},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "no file path or payload") {
+		t.Fatalf("expected BuildDraft to fail closed on unresolved attachment, got err=%v", err)
+	}
+}

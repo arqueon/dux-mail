@@ -851,7 +851,22 @@ Singleton {
             "threadId": threadId,
             "messageId": (att && att.messageId) ? att.messageId : "",
             "attachmentId": (att && att.attachmentId) ? att.attachmentId : "",
-            "filename": (att && att.filename) ? att.filename : ""
+            "filename": (att && att.filename) ? att.filename : "",
+            "path": (att && att.path) ? att.path : ""
+        }, resp => {
+            if (callback)
+                callback(resp);
+        });
+    }
+
+    function openDraftAttachment(draft, att, callback) {
+        sendRequest("attachments.open", {
+            "draftId": (draft && draft.id) ? draft.id : "",
+            "accountId": (draft && draft.accountId) ? draft.accountId : "",
+            "messageId": (att && att.messageId) ? att.messageId : ((draft && draft.providerMessageId) ? draft.providerMessageId : ""),
+            "attachmentId": (att && att.attachmentId) ? att.attachmentId : "",
+            "filename": (att && att.filename) ? att.filename : "",
+            "path": (att && att.path) ? att.path : ""
         }, resp => {
             if (callback)
                 callback(resp);

@@ -148,11 +148,13 @@ const (
 
 // AttachmentFile describes an outgoing file attachment for compose/reply/drafts.
 type AttachmentFile struct {
-	Filename string `json:"filename"`
-	MimeType string `json:"mimeType,omitempty"`
-	Size     int64  `json:"size,omitempty"`
-	Path     string `json:"path,omitempty"`
-	Data     []byte `json:"data,omitempty"`
+	MessageID    string `json:"messageId,omitempty"`
+	AttachmentID string `json:"attachmentId,omitempty"`
+	Filename     string `json:"filename"`
+	MimeType     string `json:"mimeType,omitempty"`
+	Size         int64  `json:"size,omitempty"`
+	Path         string `json:"path,omitempty"`
+	Data         []byte `json:"data,omitempty"`
 }
 
 // ReplyDraft is a reply to an existing thread. The provider is

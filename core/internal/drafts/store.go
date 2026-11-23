@@ -133,6 +133,9 @@ func (s *Store) Save(d models.DraftView) (models.DraftView, error) {
 		if d.ProviderDraftID == "" {
 			d.ProviderDraftID = prev.ProviderDraftID
 		}
+		if d.ProviderMessageID == "" {
+			d.ProviderMessageID = prev.ProviderMessageID
+		}
 		if d.ProviderThreadID == "" {
 			d.ProviderThreadID = prev.ProviderThreadID
 		}
@@ -197,6 +200,67 @@ func (s *Store) List(accountID, query string) []models.DraftView {
 	return out
 }
 
+func mergeDraftAttachments(prev []models.AttachmentView, remote []provider.AttachmentFile, keepPrevWhenRemoteEmpty bool) []models.AttachmentView {
+	if len(remote) == 0 {
+		if !keepPrevWhenRemoteEmpty || len(prev) == 0 {
+			return nil
+		}
+		var kept []models.AttachmentView
+		for _, p := range prev {
+			cleanPath := strings.TrimPrefix(strings.TrimSpace(p.Path), "file://")
+			if cleanPath == "" {
+				continue
+			}
+			if st, err := os.Stat(cleanPath); err == nil && !st.IsDir() {
+				p.Path = cleanPath
+				kept = append(kept, p)
+			}
+		}
+		return NormalizeAttachments(kept)
+	}
+	used := make([]bool, len(prev))
+	merged := make([]models.AttachmentView, 0, len(remote))
+	for _, a := range remote {
+		v := models.AttachmentView{
+			MessageID:    a.MessageID,
+			AttachmentID: a.AttachmentID,
+			Filename:     a.Filename,
+			MimeType:     a.MimeType,
+			Size:         a.Size,
+			Path:         a.Path,
+		}
+		if strings.TrimSpace(v.Path) == "" {
+			matchIdx := -1
+			for idx, p := range prev {
+				if used[idx] || p.Filename != v.Filename || strings.TrimSpace(p.Path) == "" {
+					continue
+				}
+				cleanPath := strings.TrimPrefix(strings.TrimSpace(p.Path), "file://")
+				st, err := os.Stat(cleanPath)
+				if err != nil || st.IsDir() {
+					continue
+				}
+				if v.Size == 0 || p.Size == v.Size {
+					matchIdx = idx
+					v.Path = cleanPath
+					break
+				}
+				if matchIdx == -1 {
+					matchIdx = idx
+				}
+			}
+			if matchIdx >= 0 && v.Path == "" {
+				v.Path = strings.TrimPrefix(strings.TrimSpace(prev[matchIdx].Path), "file://")
+			}
+			if matchIdx >= 0 {
+				used[matchIdx] = true
+			}
+		}
+		merged = append(merged, v)
+	}
+	return NormalizeAttachments(merged)
+}
+
 // MergeRemote reconciles remote drafts for one account into the local store.
 func (s *Store) MergeRemote(accountID string, remote []provider.DraftItem) {
 	s.mu.Lock()
@@ -226,19 +290,9 @@ func (s *Store) MergeRemote(accountID string, remote []provider.DraftItem) {
 		if exists && prev.UpdatedAt.After(updated) {
 			updated = prev.UpdatedAt
 		}
-		atts := prev.Attachments
-		if len(atts) == 0 && len(r.Attachments) > 0 {
-			for _, a := range r.Attachments {
-				atts = append(atts, models.AttachmentView{
-					Filename: a.Filename,
-					MimeType: a.MimeType,
-					Size:     a.Size,
-					Path:     a.Path,
-				})
-			}
-		}
-		body := r.Body
 		remoteTime := time.Unix(r.UpdatedAt, 0).UTC()
+		atts := mergeDraftAttachments(prev.Attachments, r.Attachments, exists && !remoteTime.After(prev.UpdatedAt.Add(5*time.Second)))
+		body := r.Body
 		if exists && prev.Body != "" {
 			if r.Body == "" || ((prev.Format == "markdown" || prev.HTMLBody != "") && !remoteTime.After(prev.UpdatedAt.Add(5*time.Second))) {
 				body = prev.Body

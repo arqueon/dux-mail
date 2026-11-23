@@ -149,11 +149,12 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 		body, _ := p["body"].(string)
 		htmlBody, _ := p["htmlBody"].(string)
 		format, _ := p["format"].(string)
-		provAtts, _ := parseAttachments(p["attachments"])
+		provAtts, viewAtts := parseAttachments(p["attachments"])
 		if body == "" && htmlBody == "" && len(provAtts) == 0 {
 			return nil, fmt.Errorf("empty reply body")
 		}
 		replyAll, _ := p["replyAll"].(bool)
+		draftID, _ := p["draftId"].(string)
 
 		detail, err := d.repo.GetThread(ctx, id)
 		if err != nil {
@@ -166,6 +167,12 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 		accountID, err := uuid.Parse(detail.AccountID)
 		if err != nil {
 			return nil, err
+		}
+		if len(provAtts) > 0 {
+			provAtts, _, err = d.hydrateOutgoingAttachments(ctx, accountID, draftID, provAtts, viewAtts)
+			if err != nil {
+				return nil, err
+			}
 		}
 		err = d.queue.Enqueue(ctx, dsync.Op{
 			AccountID: accountID, Type: dsync.OpSendReply,
@@ -182,7 +189,7 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 		if err != nil {
 			return nil, err
 		}
-		if draftID, _ := p["draftId"].(string); draftID != "" {
+		if draftID != "" {
 			d.removeDraftByID(ctx, draftID)
 		}
 		return "ok", nil
@@ -202,17 +209,25 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 		draft.To = parseStringSlice(p["to"])
 		draft.Cc = parseStringSlice(p["cc"])
 		draft.Bcc = parseStringSlice(p["bcc"])
-		draft.Attachments, _ = parseAttachments(p["attachments"])
+		provAtts, viewAtts := parseAttachments(p["attachments"])
+		draftID, _ := p["draftId"].(string)
 		if len(draft.To) == 0 && len(draft.Cc) == 0 && len(draft.Bcc) == 0 {
 			return nil, fmt.Errorf("no recipients")
 		}
+		if len(provAtts) > 0 {
+			provAtts, _, err = d.hydrateOutgoingAttachments(ctx, accountID, draftID, provAtts, viewAtts)
+			if err != nil {
+				return nil, err
+			}
+		}
+		draft.Attachments = provAtts
 		if err := d.queue.Enqueue(ctx, dsync.Op{
 			AccountID: accountID, Type: dsync.OpCompose,
 			Payload: dsync.OpPayload{Compose: &draft},
 		}); err != nil {
 			return nil, err
 		}
-		if draftID, _ := p["draftId"].(string); draftID != "" {
+		if draftID != "" {
 			d.removeDraftByID(ctx, draftID)
 		}
 		return "ok", nil
@@ -252,10 +267,11 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 		providerThreadID, _ := p["providerThreadId"].(string)
 
 		store := d.draftsStore()
-		var providerDraftID string
+		var providerDraftID, providerMessageID string
 		if id != "" {
 			if existing, ok := store.Get(id); ok {
 				providerDraftID = existing.ProviderDraftID
+				providerMessageID = existing.ProviderMessageID
 				if providerThreadID == "" {
 					providerThreadID = existing.ProviderThreadID
 				}
@@ -281,6 +297,13 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 			}
 		}
 
+		if acctUUID, err := parseUUID(accountStr); err == nil && len(provAtts) > 0 {
+			provAtts, viewAtts, err = d.hydrateOutgoingAttachments(ctx, acctUUID, id, provAtts, viewAtts)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		// Sync with remote provider when available (non-fatal if offline).
 		if acctUUID, err := parseUUID(accountStr); err == nil && d.registry != nil {
 			if prov, ok := d.registry.Provider(acctUUID); ok {
@@ -302,27 +325,37 @@ func (d *daemon) registerIPC(srv *ipc.Server) {
 						if rItem.ProviderThreadID != "" {
 							providerThreadID = rItem.ProviderThreadID
 						}
+						if rItem.ProviderMessageID != "" {
+							if rItem.ProviderMessageID != providerMessageID {
+								for i := range viewAtts {
+									viewAtts[i].MessageID = rItem.ProviderMessageID
+									viewAtts[i].AttachmentID = ""
+								}
+							}
+							providerMessageID = rItem.ProviderMessageID
+						}
 					}
 				}
 			}
 		}
 
 		saved, err := store.Save(models.DraftView{
-			ID:               id,
-			AccountID:        accountStr,
-			ProviderDraftID:  providerDraftID,
-			ProviderThreadID: providerThreadID,
-			ThreadID:         threadID,
-			InReplyTo:        inReplyTo,
-			To:               to,
-			Cc:               cc,
-			Bcc:              bcc,
-			Subject:          subject,
-			Body:             body,
-			HTMLBody:         htmlBody,
-			Format:           format,
-			UpdatedAt:        time.Now().UTC(),
-			Attachments:      viewAtts,
+			ID:                id,
+			AccountID:         accountStr,
+			ProviderDraftID:   providerDraftID,
+			ProviderMessageID: providerMessageID,
+			ProviderThreadID:  providerThreadID,
+			ThreadID:          threadID,
+			InReplyTo:         inReplyTo,
+			To:                to,
+			Cc:                cc,
+			Bcc:               bcc,
+			Subject:           subject,
+			Body:              body,
+			HTMLBody:          htmlBody,
+			Format:            format,
+			UpdatedAt:         time.Now().UTC(),
+			Attachments:       viewAtts,
 		})
 		if err != nil {
 			return nil, err
@@ -941,7 +974,8 @@ func parseStringSlice(raw any) []string {
 
 func parseAttachments(raw any) ([]provider.AttachmentFile, []models.AttachmentView) {
 	var viewAtts []models.AttachmentView
-	if arr, ok := raw.([]any); ok {
+	switch arr := raw.(type) {
+	case []any:
 		for _, item := range arr {
 			switch v := item.(type) {
 			case string:
@@ -952,16 +986,26 @@ func parseAttachments(raw any) ([]provider.AttachmentFile, []models.AttachmentVi
 				path, _ := v["path"].(string)
 				filename, _ := v["filename"].(string)
 				mimeType, _ := v["mimeType"].(string)
+				messageID, _ := v["messageId"].(string)
+				attachmentID, _ := v["attachmentId"].(string)
 				var size int64
 				if f, ok := v["size"].(float64); ok {
 					size = int64(f)
 				}
 				viewAtts = append(viewAtts, models.AttachmentView{
-					Filename: filename,
-					MimeType: mimeType,
-					Size:     size,
-					Path:     path,
+					MessageID:    strings.TrimSpace(messageID),
+					AttachmentID: strings.TrimSpace(attachmentID),
+					Filename:     filename,
+					MimeType:     mimeType,
+					Size:         size,
+					Path:         path,
 				})
+			}
+		}
+	case []string:
+		for _, item := range arr {
+			if s := strings.TrimSpace(item); s != "" {
+				viewAtts = append(viewAtts, models.AttachmentView{Path: s})
 			}
 		}
 	}
@@ -969,10 +1013,12 @@ func parseAttachments(raw any) ([]provider.AttachmentFile, []models.AttachmentVi
 	provAtts := make([]provider.AttachmentFile, 0, len(viewAtts))
 	for _, a := range viewAtts {
 		provAtts = append(provAtts, provider.AttachmentFile{
-			Filename: a.Filename,
-			MimeType: a.MimeType,
-			Size:     a.Size,
-			Path:     a.Path,
+			MessageID:    a.MessageID,
+			AttachmentID: a.AttachmentID,
+			Filename:     a.Filename,
+			MimeType:     a.MimeType,
+			Size:         a.Size,
+			Path:         a.Path,
 		})
 	}
 	return provAtts, viewAtts
@@ -1135,47 +1181,25 @@ func (d *daemon) fetchAttachmentDetails(ctx context.Context, p map[string]any) (
 	}, nil
 }
 
-func (d *daemon) ensureAttachmentCached(ctx context.Context, p map[string]any) (string, string, error) {
-	threadID, err := intParam(p, "threadId")
-	if err != nil {
-		threadID, err = intParam(p, "id")
-		if err != nil {
-			return "", "", fmt.Errorf("missing threadId")
-		}
+func readableLocalFile(rawPath string) (string, int64, bool) {
+	cleanPath := strings.TrimPrefix(strings.TrimSpace(rawPath), "file://")
+	if cleanPath == "" {
+		return "", 0, false
 	}
-	messageID, _ := p["messageId"].(string)
-	attachmentID, _ := p["attachmentId"].(string)
-	filename, _ := p["filename"].(string)
+	st, err := os.Stat(cleanPath)
+	if err != nil || st.IsDir() {
+		return "", 0, false
+	}
+	f, err := os.Open(cleanPath)
+	if err != nil {
+		return "", 0, false
+	}
+	_ = f.Close()
+	return cleanPath, st.Size(), true
+}
+
+func (d *daemon) cacheProviderAttachment(ctx context.Context, acctUUID uuid.UUID, messageID, attachmentID, filename string) (string, string, error) {
 	cleanName := sanitizeAttachmentFilename(filename)
-
-	detail, err := d.repo.GetThread(ctx, threadID)
-	if err != nil {
-		return "", "", err
-	}
-	if messageID == "" && len(detail.Messages) > 0 {
-		for _, m := range detail.Messages {
-			for _, a := range m.Attachments {
-				if (attachmentID != "" && a.AttachmentID == attachmentID) || (filename != "" && a.Filename == filename) {
-					messageID = m.ProviderMessageID
-					if attachmentID == "" {
-						attachmentID = a.AttachmentID
-					}
-					break
-				}
-			}
-			if messageID != "" {
-				break
-			}
-		}
-	}
-	if messageID == "" {
-		return "", "", fmt.Errorf("missing messageId for attachment")
-	}
-
-	acctUUID, err := parseUUID(detail.AccountID)
-	if err != nil {
-		return "", "", fmt.Errorf("bad account id")
-	}
 	if d.registry == nil {
 		return "", "", fmt.Errorf("provider registry unavailable")
 	}
@@ -1188,7 +1212,7 @@ func (d *daemon) ensureAttachmentCached(ctx context.Context, p map[string]any) (
 		return "", "", fmt.Errorf("provider does not support direct attachment download")
 	}
 
-	sum := sha256.Sum256([]byte(detail.AccountID + "|" + messageID + "|" + attachmentID + "|" + cleanName))
+	sum := sha256.Sum256([]byte(acctUUID.String() + "|" + messageID + "|" + attachmentID + "|" + cleanName))
 	slotDir := filepath.Join(paths.AttachmentsCacheDir(), hex.EncodeToString(sum[:8]))
 	cachedPath := filepath.Join(slotDir, cleanName)
 	if st, err := os.Stat(cachedPath); err == nil && !st.IsDir() && st.Size() > 0 {
@@ -1198,6 +1222,9 @@ func (d *daemon) ensureAttachmentCached(ctx context.Context, p map[string]any) (
 	data, err := fetcher.FetchAttachment(ctx, messageID, attachmentID, cleanName)
 	if err != nil {
 		return "", "", err
+	}
+	if len(data) == 0 {
+		return "", "", fmt.Errorf("attachment %q has no payload", cleanName)
 	}
 	if err := os.MkdirAll(slotDir, 0o700); err != nil {
 		return "", "", err
@@ -1210,6 +1237,285 @@ func (d *daemon) ensureAttachmentCached(ctx context.Context, p map[string]any) (
 		return "", "", err
 	}
 	return cachedPath, cleanName, nil
+}
+
+func (d *daemon) hydrateOutgoingAttachments(ctx context.Context, accountID uuid.UUID, draftID string, provAtts []provider.AttachmentFile, viewAtts []models.AttachmentView) ([]provider.AttachmentFile, []models.AttachmentView, error) {
+	if len(provAtts) == 0 {
+		return provAtts, viewAtts, nil
+	}
+	outProv := append([]provider.AttachmentFile(nil), provAtts...)
+	var outView []models.AttachmentView
+	if len(viewAtts) == len(provAtts) {
+		outView = append([]models.AttachmentView(nil), viewAtts...)
+	} else {
+		outView = make([]models.AttachmentView, len(provAtts))
+		for i, a := range outProv {
+			outView[i] = models.AttachmentView{
+				MessageID:    a.MessageID,
+				AttachmentID: a.AttachmentID,
+				Filename:     a.Filename,
+				MimeType:     a.MimeType,
+				Size:         a.Size,
+				Path:         a.Path,
+			}
+		}
+	}
+
+	var existing models.DraftView
+	var hasExisting bool
+	var used []bool
+	if draftID != "" {
+		existing, hasExisting = d.draftsStore().Get(draftID)
+		used = make([]bool, len(existing.Attachments))
+	}
+	syncedRemote := false
+
+	for i := range outProv {
+		a := &outProv[i]
+		v := &outView[i]
+		if len(a.Data) > 0 {
+			continue
+		}
+		origPath := a.Path
+		if cleanPath, size, ok := readableLocalFile(origPath); ok {
+			a.Path = cleanPath
+			a.Size = size
+			v.Path = cleanPath
+			v.Size = size
+			continue
+		}
+
+		msgID := strings.TrimSpace(a.MessageID)
+		attID := strings.TrimSpace(a.AttachmentID)
+		foundLocal := false
+
+		matchDraftAttachment := func() int {
+			if attID != "" {
+				for j, ea := range existing.Attachments {
+					if (j >= len(used) || !used[j]) && ea.AttachmentID == attID {
+						return j
+					}
+				}
+			}
+			if a.Filename != "" {
+				for j, ea := range existing.Attachments {
+					if (j >= len(used) || !used[j]) && ea.Filename == a.Filename {
+						return j
+					}
+				}
+			}
+			return -1
+		}
+
+		backfill := func() {
+			if !hasExisting {
+				return
+			}
+			if idx := matchDraftAttachment(); idx >= 0 {
+				if idx < len(used) {
+					used[idx] = true
+				}
+				ea := existing.Attachments[idx]
+				if msgID == "" {
+					msgID = strings.TrimSpace(ea.MessageID)
+				}
+				if attID == "" {
+					attID = strings.TrimSpace(ea.AttachmentID)
+				}
+				if cleanPath, size, ok := readableLocalFile(ea.Path); ok {
+					a.Path = cleanPath
+					a.Size = size
+					a.MessageID = msgID
+					a.AttachmentID = attID
+					v.Path = cleanPath
+					v.Size = size
+					v.MessageID = msgID
+					v.AttachmentID = attID
+					foundLocal = true
+					return
+				}
+			}
+			if msgID == "" && existing.ProviderMessageID != "" {
+				msgID = strings.TrimSpace(existing.ProviderMessageID)
+			}
+		}
+
+		backfill()
+		if foundLocal {
+			continue
+		}
+		if msgID == "" && hasExisting && existing.ProviderDraftID != "" && !syncedRemote {
+			d.syncRemoteDrafts(ctx, accountID.String())
+			syncedRemote = true
+			if refreshed, ok := d.draftsStore().Get(draftID); ok {
+				existing = refreshed
+				hasExisting = true
+				used = make([]bool, len(existing.Attachments))
+			} else {
+				hasExisting = false
+				used = nil
+			}
+			backfill()
+			if foundLocal {
+				continue
+			}
+		}
+
+		label := a.Filename
+		if strings.TrimSpace(label) == "" {
+			if origPath != "" {
+				label = filepath.Base(origPath)
+			} else {
+				label = "attachment"
+			}
+		}
+
+		if msgID != "" {
+			cachedPath, _, err := d.cacheProviderAttachment(ctx, accountID, msgID, attID, label)
+			if err != nil {
+				return nil, nil, fmt.Errorf("attachment %q: %w", label, err)
+			}
+			st, err := os.Stat(cachedPath)
+			if err != nil {
+				return nil, nil, fmt.Errorf("attachment %q: %w", label, err)
+			}
+			a.Path = cachedPath
+			a.Size = st.Size()
+			a.MessageID = msgID
+			a.AttachmentID = attID
+			v.Path = cachedPath
+			v.Size = st.Size()
+			v.MessageID = msgID
+			v.AttachmentID = attID
+			continue
+		}
+
+		if strings.TrimSpace(origPath) != "" {
+			return nil, nil, fmt.Errorf("attachment %q is missing on disk (%s)", label, origPath)
+		}
+		return nil, nil, fmt.Errorf("attachment %q has no local file or downloadable payload", label)
+	}
+
+	return outProv, outView, nil
+}
+
+func (d *daemon) ensureAttachmentCached(ctx context.Context, p map[string]any) (string, string, error) {
+	rawPath, _ := p["path"].(string)
+	filename, _ := p["filename"].(string)
+	messageID, _ := p["messageId"].(string)
+	attachmentID, _ := p["attachmentId"].(string)
+	draftID, _ := p["draftId"].(string)
+
+	if cleanPath, _, ok := readableLocalFile(rawPath); ok {
+		name := filename
+		if strings.TrimSpace(name) == "" {
+			name = filepath.Base(cleanPath)
+		}
+		return cleanPath, sanitizeAttachmentFilename(name), nil
+	}
+	cleanName := sanitizeAttachmentFilename(filename)
+
+	threadID, tidErr := intParam(p, "threadId")
+	if tidErr != nil {
+		threadID, tidErr = intParam(p, "id")
+	}
+	if tidErr == nil && threadID > 0 {
+		detail, err := d.repo.GetThread(ctx, threadID)
+		if err != nil {
+			return "", "", err
+		}
+		if messageID == "" && len(detail.Messages) > 0 {
+			for _, m := range detail.Messages {
+				for _, a := range m.Attachments {
+					if (attachmentID != "" && a.AttachmentID == attachmentID) || (filename != "" && a.Filename == filename) {
+						messageID = m.ProviderMessageID
+						if attachmentID == "" {
+							attachmentID = a.AttachmentID
+						}
+						break
+					}
+				}
+				if messageID != "" {
+					break
+				}
+			}
+		}
+		if messageID == "" {
+			return "", "", fmt.Errorf("missing messageId for attachment")
+		}
+		acctUUID, err := parseUUID(detail.AccountID)
+		if err != nil {
+			return "", "", fmt.Errorf("bad account id")
+		}
+		return d.cacheProviderAttachment(ctx, acctUUID, messageID, attachmentID, cleanName)
+	}
+
+	accountStr, _ := p["accountId"].(string)
+	if strings.TrimSpace(accountStr) == "" {
+		accountStr, _ = p["account"].(string)
+	}
+	if draftID != "" {
+		applyDraft := func(draft models.DraftView) (string, string, bool) {
+			if accountStr == "" {
+				accountStr = draft.AccountID
+			}
+			for _, a := range draft.Attachments {
+				matched := (attachmentID != "" && a.AttachmentID == attachmentID) ||
+					(filename != "" && (a.Filename == filename || sanitizeAttachmentFilename(a.Filename) == cleanName)) ||
+					(len(draft.Attachments) == 1 && filename == "" && attachmentID == "")
+				if !matched {
+					continue
+				}
+				if cleanPath, _, ok := readableLocalFile(a.Path); ok {
+					name := filename
+					if strings.TrimSpace(name) == "" {
+						name = a.Filename
+					}
+					return cleanPath, sanitizeAttachmentFilename(name), true
+				}
+				if messageID == "" {
+					messageID = a.MessageID
+				}
+				if attachmentID == "" {
+					attachmentID = a.AttachmentID
+				}
+				if strings.TrimSpace(filename) == "" && a.Filename != "" {
+					filename = a.Filename
+					cleanName = sanitizeAttachmentFilename(filename)
+				}
+				break
+			}
+			if messageID == "" && draft.ProviderMessageID != "" {
+				messageID = draft.ProviderMessageID
+			}
+			return "", "", false
+		}
+		if draft, ok := d.draftsStore().Get(draftID); ok {
+			if cp, cn, okLocal := applyDraft(draft); okLocal {
+				return cp, cn, nil
+			}
+			if messageID == "" && draft.ProviderDraftID != "" && accountStr != "" {
+				d.syncRemoteDrafts(ctx, accountStr)
+				if refreshed, ok := d.draftsStore().Get(draftID); ok {
+					if cp, cn, okLocal := applyDraft(refreshed); okLocal {
+						return cp, cn, nil
+					}
+				}
+			}
+		}
+	}
+
+	if strings.TrimSpace(accountStr) == "" || messageID == "" {
+		if strings.TrimSpace(rawPath) != "" {
+			return "", "", fmt.Errorf("attachment file not found on disk: %s", rawPath)
+		}
+		return "", "", fmt.Errorf("missing threadId or draft attachment reference")
+	}
+	acctUUID, err := parseUUID(accountStr)
+	if err != nil {
+		return "", "", fmt.Errorf("bad account id")
+	}
+	return d.cacheProviderAttachment(ctx, acctUUID, messageID, attachmentID, cleanName)
 }
 
 func sanitizeAttachmentFilename(name string) string {

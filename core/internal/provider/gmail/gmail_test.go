@@ -1095,3 +1095,45 @@ func TestArchivedPageResumesAfterPartialFailure(t *testing.T) {
 		t.Fatalf("last=%+v next=%q err=%v", last, next, err)
 	}
 }
+
+func TestDraftItemPreservesAttachmentMetadata(t *testing.T) {
+	p := newTestProvider(&fakeAPI{}, Options{})
+	d := &gmailv1.Draft{
+		Id: "gd-99",
+		Message: &gmailv1.Message{
+			Id:           "gm-99",
+			ThreadId:     "gt-99",
+			InternalDate: 1700000900000,
+			Payload: &gmailv1.MessagePart{
+				MimeType: "multipart/mixed",
+				Headers: hdrs(
+					"To", "Ada <ada@x.example>",
+					"Subject", "Draft with attachment",
+				),
+				Parts: []*gmailv1.MessagePart{
+					{
+						MimeType: "text/plain",
+						Body:     &gmailv1.MessagePartBody{Data: b64("see attached")},
+					},
+					{
+						MimeType: "application/pdf",
+						Filename: "proposal.pdf",
+						Body:     &gmailv1.MessagePartBody{AttachmentId: "att-remote-1", Size: 4096},
+					},
+				},
+			},
+		},
+	}
+
+	item := p.draftItem(d)
+	if item.ProviderDraftID != "gd-99" || item.ProviderMessageID != "gm-99" {
+		t.Fatalf("unexpected draft IDs: %+v", item)
+	}
+	if len(item.Attachments) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(item.Attachments))
+	}
+	got := item.Attachments[0]
+	if got.MessageID != "gm-99" || got.AttachmentID != "att-remote-1" || got.Filename != "proposal.pdf" || got.Size != 4096 {
+		t.Fatalf("expected remote metadata preserved, got %+v", got)
+	}
+}

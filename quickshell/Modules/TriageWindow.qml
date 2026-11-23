@@ -505,7 +505,11 @@ FloatingWindow {
                 return;
             DankMailService.saveAttachmentAs(t.id, att, dir, resp => {
                 if (resp && resp.error) {
-                    window.operationError = I18n.tr("Could not apply the action: %1", "operation error").arg(resp.error);
+                    const errStr = String(resp.error);
+                    if (errStr.indexOf("has no payload") !== -1 || errStr.indexOf("not found on message") !== -1)
+                        window.operationError = I18n.tr("Cannot open %1: this attachment has no content in the message (0 bytes).", "attachments").arg(att.filename || "");
+                    else
+                        window.operationError = I18n.tr("Could not apply the action: %1", "operation error").arg(errStr);
                     return;
                 }
                 if (resp && resp.result && resp.result.path) {
@@ -2481,12 +2485,13 @@ FloatingWindow {
                                     id: attachChip
                                     required property var modelData
                                     property bool opening: false
+                                    readonly property bool missingPayload: attachChip.modelData.size === 0 && (!attachChip.modelData.attachmentId || attachChip.modelData.attachmentId === "")
                                     width: attachRow.implicitWidth + Theme.spacingM * 2
                                     height: 30
                                     radius: 15
                                     color: Theme.surfaceContainerHigh
                                     border.width: 1
-                                    border.color: Theme.outlineMedium
+                                    border.color: missingPayload ? Theme.warning : Theme.outlineMedium
 
                                     RowLayout {
                                         id: attachRow
@@ -2503,13 +2508,13 @@ FloatingWindow {
                                                 spacing: Theme.spacingXS
 
                                                 DankIcon {
-                                                    name: attachChip.opening ? "progress_activity" : (attachChip.modelData.mimeType && attachChip.modelData.mimeType.startsWith("image/") ? "image" : "description")
+                                                    name: attachChip.opening ? "progress_activity" : (attachChip.missingPayload ? "warning" : (attachChip.modelData.mimeType && attachChip.modelData.mimeType.startsWith("image/") ? "image" : "description"))
                                                     size: Theme.iconSizeSmall
-                                                    color: Theme.primary
+                                                    color: attachChip.missingPayload ? Theme.warning : Theme.primary
                                                 }
 
                                                 StyledText {
-                                                    text: attachChip.modelData.filename + (window.formatSize(attachChip.modelData.size) !== "" ? "  ·  " + window.formatSize(attachChip.modelData.size) : "")
+                                                    text: attachChip.modelData.filename + (attachChip.missingPayload ? "  ·  " + I18n.tr("empty (0 B)", "attachments") : (window.formatSize(attachChip.modelData.size) !== "" ? "  ·  " + window.formatSize(attachChip.modelData.size) : ""))
                                                     font.pixelSize: Theme.fontSizeSmall
                                                     maximumLineCount: 1
                                                 }
@@ -2526,8 +2531,15 @@ FloatingWindow {
                                                     attachChip.opening = true;
                                                     DankMailService.openAttachment(t.id, attachChip.modelData, resp => {
                                                         attachChip.opening = false;
-                                                        if (resp && resp.error)
-                                                            DankMailService.openWeb(t.id);
+                                                        if (resp && resp.error) {
+                                                            const errStr = String(resp.error);
+                                                            if (errStr.indexOf("does not support direct attachment download") !== -1)
+                                                                DankMailService.openWeb(t.id);
+                                                            else if (errStr.indexOf("has no payload") !== -1 || errStr.indexOf("not found on message") !== -1)
+                                                                window.operationError = I18n.tr("Cannot open %1: this attachment has no content in the message (0 bytes).", "attachments").arg(attachChip.modelData.filename || "");
+                                                            else
+                                                                window.operationError = I18n.tr("Could not open attachment %1: %2", "attachments").arg(attachChip.modelData.filename || "").arg(errStr);
+                                                        }
                                                     });
                                                 }
                                             }
@@ -3884,6 +3896,7 @@ FloatingWindow {
                             delegate: StyledRect {
                                 id: draftAttPreviewChip
                                 required property var modelData
+                                property bool opening: false
                                 width: draftAttPreviewRow.implicitWidth + Theme.spacingL
                                 height: 28
                                 radius: 14
@@ -3897,7 +3910,7 @@ FloatingWindow {
                                     spacing: Theme.spacingXS
 
                                     DankIcon {
-                                        name: "attach_file"
+                                        name: draftAttPreviewChip.opening ? "progress_activity" : "attach_file"
                                         size: Theme.iconSizeSmall
                                         color: Theme.primary
                                     }
@@ -3906,6 +3919,24 @@ FloatingWindow {
                                         text: draftAttPreviewChip.modelData.filename + (window.formatSize(draftAttPreviewChip.modelData.size) !== "" ? "  ·  " + window.formatSize(draftAttPreviewChip.modelData.size) : "")
                                         font.pixelSize: Theme.fontSizeSmall
                                         maximumLineCount: 1
+                                    }
+                                }
+
+                                StateLayer {
+                                    disabled: draftAttPreviewChip.opening
+                                    stateColor: Theme.primary
+                                    cornerRadius: 14
+                                    onClicked: {
+                                        const d = DankMailService.currentDraft;
+                                        if (!d)
+                                            return;
+                                        draftAttPreviewChip.opening = true;
+                                        DankMailService.openDraftAttachment(d, draftAttPreviewChip.modelData, resp => {
+                                            draftAttPreviewChip.opening = false;
+                                            if (resp && resp.error) {
+                                                window.operationError = I18n.tr("Could not open attachment %1: %2", "attachments").arg(draftAttPreviewChip.modelData.filename || "").arg(String(resp.error));
+                                            }
+                                        });
                                     }
                                 }
                             }

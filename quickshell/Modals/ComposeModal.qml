@@ -20,6 +20,7 @@ FloatingWindow {
     visible: false
 
     property string draftId: ""
+    property string providerMessageId: ""
     property int threadId: 0
     property string providerThreadId: ""
     property string inReplyTo: ""
@@ -41,6 +42,7 @@ FloatingWindow {
 
     function resetFields() {
         draftId = "";
+        providerMessageId = "";
         threadId = 0;
         providerThreadId = "";
         inReplyTo = "";
@@ -79,6 +81,7 @@ FloatingWindow {
             return;
         resetFields();
         draftId = d.id || "";
+        providerMessageId = d.providerMessageId || "";
         threadId = d.threadId || 0;
         providerThreadId = d.providerThreadId || "";
         inReplyTo = d.inReplyTo || "";
@@ -88,6 +91,8 @@ FloatingWindow {
         bccRecipients = (d.bcc || []).slice();
         showCcBcc = ccRecipients.length > 0 || bccRecipients.length > 0;
         attachments = (d.attachments || []).map(a => ({
+            "messageId": a.messageId || "",
+            "attachmentId": a.attachmentId || "",
             "filename": a.filename || "",
             "mimeType": a.mimeType || "",
             "size": a.size || 0,
@@ -341,6 +346,8 @@ FloatingWindow {
             }
             if (resp.result && resp.result.id)
                 modal.draftId = resp.result.id;
+            if (resp.result && resp.result.providerMessageId)
+                modal.providerMessageId = resp.result.providerMessageId;
             if (resp.result && resp.result.attachments)
                 modal.attachments = resp.result.attachments;
             modal.statusNotice = I18n.tr("Draft saved", "compose");
@@ -1050,6 +1057,7 @@ FloatingWindow {
                     id: attChip
                     required property var modelData
                     required property int index
+                    property bool opening: false
                     width: attRow.implicitWidth + Theme.spacingL
                     height: 28
                     radius: 14
@@ -1062,16 +1070,45 @@ FloatingWindow {
                         anchors.centerIn: parent
                         spacing: Theme.spacingXS
 
-                        DankIcon {
-                            name: "attach_file"
-                            size: 14
-                            color: Theme.primary
-                        }
+                        Item {
+                            implicitWidth: attOpenRow.implicitWidth
+                            implicitHeight: 26
 
-                        StyledText {
-                            text: attChip.modelData.filename + (modal.formatSize(attChip.modelData.size) !== "" ? " · " + modal.formatSize(attChip.modelData.size) : "")
-                            font.pixelSize: Theme.fontSizeSmall
-                            maximumLineCount: 1
+                            RowLayout {
+                                id: attOpenRow
+                                anchors.centerIn: parent
+                                spacing: Theme.spacingXS
+
+                                DankIcon {
+                                    name: attChip.opening ? "progress_activity" : "attach_file"
+                                    size: 14
+                                    color: Theme.primary
+                                }
+
+                                StyledText {
+                                    text: attChip.modelData.filename + (modal.formatSize(attChip.modelData.size) !== "" ? " · " + modal.formatSize(attChip.modelData.size) : "")
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    maximumLineCount: 1
+                                }
+                            }
+
+                            StateLayer {
+                                disabled: attChip.opening
+                                stateColor: Theme.primary
+                                cornerRadius: 12
+                                onClicked: {
+                                    attChip.opening = true;
+                                    DankMailService.openDraftAttachment({
+                                        "id": modal.draftId,
+                                        "accountId": modal.accountId,
+                                        "providerMessageId": modal.providerMessageId
+                                    }, attChip.modelData, resp => {
+                                        attChip.opening = false;
+                                        if (resp && resp.error)
+                                            modal.error = resp.error;
+                                    });
+                                }
+                            }
                         }
 
                         DankIcon {

@@ -370,9 +370,11 @@ func (p *Provider) draftItem(d *gmailv1.Draft) provider.DraftItem {
 	}
 	for _, a := range md.Attachments {
 		item.Attachments = append(item.Attachments, provider.AttachmentFile{
-			Filename: a.Filename,
-			MimeType: a.MimeType,
-			Size:     a.Size,
+			MessageID:    m.Id,
+			AttachmentID: a.AttachmentID,
+			Filename:     a.Filename,
+			MimeType:     a.MimeType,
+			Size:         a.Size,
 		})
 	}
 	return item

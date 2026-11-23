@@ -259,7 +259,10 @@
     "Select": "Selecionar"
   },
   "attachments": {
-    "Saved: %1": "Salvo: %1"
+    "Saved: %1": "Salvo: %1",
+    "empty (0 B)": "vazio (0 B)",
+    "Cannot open %1: this attachment has no content in the message (0 bytes).": "Não é possível abrir %1: este anexo não tem conteúdo na mensagem (0 bytes).",
+    "Could not open attachment %1: %2": "Não foi possível abrir o anexo %1: %2"
   },
   "undo banner": {
     "Undo": "Desfazer",
