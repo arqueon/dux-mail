@@ -137,17 +137,172 @@ PluginComponent {
         });
     }
 
-    function senderOf(t) {
+    function accountEmailOf(accountId) {
+        for (let i = 0; i < root.accounts.length; i++) {
+            if (root.accounts[i].id === accountId)
+                return root.accounts[i].email || "";
+        }
+        return "";
+    }
+
+    function decodeBase64Utf8(b64) {
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        const clean = String(b64).replace(/[^A-Za-z0-9+/=]/g, "");
+        const bytes = [];
+        for (let i = 0; i < clean.length; i += 4) {
+            const c1 = alphabet.indexOf(clean.charAt(i));
+            const c2 = alphabet.indexOf(clean.charAt(i + 1));
+            const c3 = clean.charAt(i + 2) === "=" ? -1 : alphabet.indexOf(clean.charAt(i + 2));
+            const c4 = clean.charAt(i + 3) === "=" ? -1 : alphabet.indexOf(clean.charAt(i + 3));
+            if (c1 < 0 || c2 < 0)
+                break;
+            bytes.push((c1 << 2) | (c2 >> 4));
+            if (c3 >= 0) {
+                bytes.push(((c2 & 15) << 4) | (c3 >> 2));
+                if (c4 >= 0)
+                    bytes.push(((c3 & 3) << 6) | c4);
+            }
+        }
+        let hex = "";
+        for (let j = 0; j < bytes.length; j++) {
+            const h = bytes[j].toString(16);
+            hex += "%" + (h.length < 2 ? "0" + h : h);
+        }
+        return decodeURIComponent(hex);
+    }
+
+    function decodeMimeWords(str) {
+        if (!str)
+            return "";
+        return String(str).replace(/=\?([^?]+)\?([qQbB])\?([^?]*)\?=/g, (match, _charset, enc, text) => {
+            const mode = enc.toUpperCase();
+            if (mode === "Q") {
+                const qText = text.replace(/%/g, "%25").replace(/_/g, " ").replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => "%" + hex);
+                try {
+                    return decodeURIComponent(qText);
+                } catch (e) {
+                    return text;
+                }
+            }
+            if (mode === "B") {
+                try {
+                    return root.decodeBase64Utf8(text);
+                } catch (e) {
+                    return text;
+                }
+            }
+            return match;
+        });
+    }
+
+    function parseAddr(raw) {
+        if (!raw)
+            return { "name": "", "email": "" };
+        const decoded = root.decodeMimeWords(raw);
+        const m = decoded.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+        if (m) {
+            return {
+                "name": m[1].replace(/^"+|"+$/g, "").trim(),
+                "email": m[2].trim()
+            };
+        }
+        return {
+            "name": "",
+            "email": decoded.replace(/^<|>$/g, "").trim()
+        };
+    }
+
+    function displayAddrName(raw) {
+        const a = root.parseAddr(raw);
+        return a.name !== "" ? a.name : a.email;
+    }
+
+    function isSelfAddr(raw, accountEmail) {
+        const acct = String(accountEmail || "").trim().toLowerCase();
+        if (acct === "")
+            return false;
+        return root.parseAddr(raw).email.toLowerCase() === acct;
+    }
+
+    function shortSenderName(raw, accountEmail, meLabel, maxLen) {
+        const limit = maxLen || 14;
+        if (root.isSelfAddr(raw, accountEmail))
+            return meLabel || "me";
+        const name = root.displayAddrName(raw);
+        if (name === "")
+            return "";
+        let result = "";
+        if (!/\s/.test(name) && name.indexOf("@") !== -1) {
+            result = name.split("@")[0];
+        } else {
+            const parts = name.split(/\s+/);
+            const tokens = [];
+            for (let i = 0; i < parts.length; i++) {
+                const tok = parts[i].replace(/^[,;"']+/, "").replace(/[,;"']+$/, "");
+                if (tok !== "")
+                    tokens.push(tok);
+            }
+            if (tokens.length === 0)
+                result = name;
+            else if (tokens.length > 1 && (tokens[0].slice(-1) === "." || tokens[0].length <= 2))
+                result = tokens[0] + " " + tokens[1];
+            else
+                result = tokens[0];
+        }
+        if (result.length > limit)
+            return result.slice(0, Math.max(1, limit - 1)) + "\u2026";
+        return result;
+    }
+
+    function senderKey(raw, accountEmail) {
+        if (root.isSelfAddr(raw, accountEmail))
+            return "__self__";
+        const a = root.parseAddr(raw);
+        return (a.name || a.email).toLowerCase();
+    }
+
+    function senderInfoOf(t) {
+        if (!t)
+            return { "prefix": "", "latest": "", "count": 0 };
         if (Array.isArray(t.to)) {
             if (t.to.length === 0)
-                return I18n.trFor("dankmailUnread", "Draft");
-            const first = t.to[0];
-            const dm = first.match(/^\s*"?([^"<]*?)"?\s*<[^>]+>\s*$/);
-            return dm && dm[1].trim() !== "" ? dm[1].trim() : first;
+                return { "prefix": "", "latest": I18n.trFor("dankmailUnread", "Draft"), "count": 0 };
+            return { "prefix": "", "latest": root.displayAddrName(t.to[0]), "count": 0 };
         }
-        const raw = (t.participants && t.participants.length > 0) ? t.participants[0] : "";
-        const m = raw.match(/^\s*"?([^"<]*?)"?\s*<[^>]+>\s*$/);
-        return m && m[1].trim() !== "" ? m[1].trim() : raw;
+        const me = I18n.trFor("dankmailUnread", "me");
+        const acctEmail = root.accountEmailOf(t.accountId);
+        const participants = Array.isArray(t.participants) ? t.participants.filter(Boolean) : [];
+        const msgCount = (t.messageCount > 1) ? t.messageCount : 0;
+        const seen = {};
+        let ordered = [];
+        for (let i = 0; i < participants.length; i++) {
+            const k = root.senderKey(participants[i], acctEmail);
+            if (!k || seen[k])
+                continue;
+            seen[k] = true;
+            ordered.push(participants[i]);
+        }
+        const lastRaw = t.lastSender ? String(t.lastSender) : (ordered.length > 0 ? ordered[ordered.length - 1] : "");
+        if (lastRaw !== "") {
+            const lk = root.senderKey(lastRaw, acctEmail);
+            ordered = ordered.filter(p => root.senderKey(p, acctEmail) !== lk);
+            ordered.push(lastRaw);
+        }
+        if (ordered.length === 0)
+            return { "prefix": "", "latest": "", "count": msgCount };
+        const latestEntry = ordered[ordered.length - 1];
+        const latestLabel = root.isSelfAddr(latestEntry, acctEmail) ? me : root.displayAddrName(latestEntry);
+        let prefix = "";
+        if (ordered.length === 2)
+            prefix = root.shortSenderName(ordered[0], acctEmail, me, 14) + ", ";
+        else if (ordered.length >= 3)
+            prefix = root.shortSenderName(ordered[0], acctEmail, me, 14) + ", \u2026, ";
+        return { "prefix": prefix, "latest": latestLabel, "count": msgCount };
+    }
+
+    function senderOf(t) {
+        const info = root.senderInfoOf(t);
+        return info.prefix + info.latest;
     }
 
     function timeOf(iso) {
@@ -707,14 +862,62 @@ PluginComponent {
                                             width: parent.width - Theme.spacingS * 3 - timeLabel.implicitWidth - (starMark.visible ? starMark.width + Theme.spacingS : 0)
                                             spacing: 0
 
-                                            StyledText {
+                                            Row {
+                                                id: senderRow
+                                                readonly property var senderInfo: root.senderInfoOf(mailRow.modelData)
+                                                readonly property real countReserved: countBadge.visible ? (countBadge.width + Theme.spacingXS) : 0
                                                 width: parent.width
-                                                text: root.senderOf(mailRow.modelData)
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                font.weight: mailRow.modelData.unread ? Font.Bold : Font.Normal
-                                                color: mailRow.modelData.unread ? Theme.surfaceText : Theme.surfaceVariantText
-                                                elide: Text.ElideRight
-                                                maximumLineCount: 1
+                                                spacing: 0
+
+                                                StyledText {
+                                                    id: senderPrefixText
+                                                    visible: senderRow.senderInfo.prefix !== ""
+                                                    width: visible ? Math.min(Math.ceil(implicitWidth), Math.floor(senderRow.width * 0.42)) : 0
+                                                    text: senderRow.senderInfo.prefix
+                                                    font.pixelSize: Theme.fontSizeSmall
+                                                    font.weight: Font.Normal
+                                                    color: Theme.surfaceVariantText
+                                                    elide: Text.ElideRight
+                                                    maximumLineCount: 1
+                                                }
+
+                                                StyledText {
+                                                    id: senderLatestText
+                                                    readonly property real maxLatestW: Math.max(0, senderRow.width - senderPrefixText.width - senderRow.countReserved)
+                                                    width: Math.min(Math.ceil(implicitWidth), maxLatestW)
+                                                    text: senderRow.senderInfo.latest
+                                                    font.pixelSize: Theme.fontSizeSmall
+                                                    font.weight: (mailRow.modelData.unread || senderRow.senderInfo.prefix !== "") ? Font.Bold : Font.Normal
+                                                    color: mailRow.modelData.unread ? Theme.surfaceText : Theme.surfaceVariantText
+                                                    elide: Text.ElideRight
+                                                    maximumLineCount: 1
+                                                }
+
+                                                Item {
+                                                    visible: countBadge.visible
+                                                    width: Theme.spacingXS
+                                                    height: 1
+                                                }
+
+                                                Rectangle {
+                                                    id: countBadge
+                                                    visible: senderRow.senderInfo.count > 1
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    width: countBadgeLabel.implicitWidth + Theme.spacingS
+                                                    height: countBadgeLabel.implicitHeight + Theme.spacingXXS
+                                                    radius: Theme.cornerRadiusSmall
+                                                    color: Qt.rgba(Theme.surfaceVariantText.r, Theme.surfaceVariantText.g, Theme.surfaceVariantText.b, 0.16)
+
+                                                    StyledText {
+                                                        id: countBadgeLabel
+                                                        anchors.centerIn: parent
+                                                        text: String(senderRow.senderInfo.count)
+                                                        font.pixelSize: Theme.fontSizeSmall - 1
+                                                        font.weight: Font.Medium
+                                                        color: Theme.surfaceVariantText
+                                                        maximumLineCount: 1
+                                                    }
+                                                }
                                             }
 
                                             StyledText {

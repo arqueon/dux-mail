@@ -78,6 +78,7 @@ var overrides = map[string]map[string]string{
 		"(Daemon not running; changes apply when it starts.)": "(Daemon no activo; los cambios aplican al arrancarlo.)",
 		"Daemon restarted (dmail.service).":                   "Daemon reiniciado (dmail.service).",
 		// cli: labels
+		"me":                                    "yo",
 		"Cancelled.":                            "Cancelado.",
 		"[always synced]":                       "[siempre sincronizada]",
 		"Label created: %s (%s)\n":              "Etiqueta creada: %s (%s)\n",
@@ -122,6 +123,7 @@ var overrides = map[string]map[string]string{
 		"(Daemon not running; changes apply when it starts.)": "(Daemon não está em execução; as alterações valem quando ele iniciar.)",
 		"Daemon restarted (dmail.service).":                   "Daemon reiniciado (dmail.service).",
 		// cli: labels
+		"me":                                    "eu",
 		"Cancelled.":                            "Cancelado.",
 		"[always synced]":                       "[sempre sincronizada]",
 		"Label created: %s (%s)\n":              "Marcador criado: %s (%s)\n",

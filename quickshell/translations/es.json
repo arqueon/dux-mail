@@ -33,7 +33,8 @@
     "Daemon offline": "Daemon desconectado"
   },
   "thread list": {
-    "(no subject)": "(sin asunto)"
+    "(no subject)": "(sin asunto)",
+    "me": "yo"
   },
   "empty state": {
     "No archived mail": "No hay correos archivados",

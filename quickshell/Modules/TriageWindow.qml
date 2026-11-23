@@ -9,6 +9,7 @@ import "../Common/ThreadSearch.js" as ThreadSearch
 import "../Common/BodyFormatter.js" as BodyFormatter
 import "../Common/Labels.js" as Labels
 import "../Common/Selection.js" as Selection
+import "../Common/Senders.js" as Senders
 
 // Main triage window: unified thread list (left) + plain-text preview
 // (right). Everything here is a view over the daemon: actions enqueue
@@ -1316,7 +1317,10 @@ FloatingWindow {
                         id: row
                         required property string rowJson
                         readonly property var modelData: JSON.parse(rowJson)
-                        ListView.onPooled: rowActions.snoozing = false
+                        ListView.onPooled: {
+                            rowActions.snoozing = false;
+                            windowTooltip.hide(senderStrip);
+                        }
 
                         readonly property bool selected: modelData.id === window.selectedThreadId
                         readonly property bool isHidden: window.temporarilyHiddenIds.indexOf(modelData.id) !== -1
@@ -1343,7 +1347,13 @@ FloatingWindow {
                             anchors.rightMargin: Theme.spacingM
                             spacing: Theme.spacingM
 
-                            readonly property string sender: (row.modelData.participants && row.modelData.participants.length > 0) ? row.modelData.participants[0] : ""
+                            readonly property var senderInfo: Senders.formatThreadSenders(
+                                row.modelData,
+                                DankMailService.accountEmail(row.modelData.accountId),
+                                I18n.tr("me", "thread list"),
+                                DankMailService.filterLabel === "SENT"
+                            )
+                            readonly property string sender: senderInfo.avatarRaw
                             id: rowContent
 
                             // Multi-selection: reserve room for the checkbox
@@ -1380,16 +1390,71 @@ FloatingWindow {
                                 RowLayout {
                                     Layout.fillWidth: true
 
-                                    // Sender: human name only; the
-                                    // address lives in the preview.
-                                    StyledText {
+                                    // Sender strip: shortened prior participants
+                                    // + bold latest sender + thread message count.
+                                    RowLayout {
+                                        id: senderStrip
                                         Layout.fillWidth: true
-                                        text: DankMailService.displayName(rowContent.sender)
-                                        // Sender names always bold; read
-                                        // vs unread is carried by color.
-                                        font.weight: Font.Bold
-                                        color: row.modelData.unread ? Theme.surfaceText : Theme.surfaceTextMedium
-                                        maximumLineCount: 1
+                                        spacing: 0
+
+                                        StyledText {
+                                            visible: rowContent.senderInfo.prefix !== ""
+                                            text: rowContent.senderInfo.prefix
+                                            font.weight: Font.Normal
+                                            color: Theme.surfaceTextMedium
+                                            wrapMode: Text.NoWrap
+                                            elide: Text.ElideRight
+                                            maximumLineCount: 1
+                                            Layout.minimumWidth: 0
+                                            Layout.maximumWidth: 110
+                                        }
+
+                                        StyledText {
+                                            id: latestSenderText
+                                            Layout.fillWidth: true
+                                            Layout.minimumWidth: 40
+                                            Layout.maximumWidth: Math.max(40, Math.ceil(latestSenderText.implicitWidth))
+                                            text: rowContent.senderInfo.latest
+                                            // Latest sender always bold; read
+                                            // vs unread is carried by color.
+                                            font.weight: Font.Bold
+                                            color: row.modelData.unread ? Theme.surfaceText : Theme.surfaceTextMedium
+                                            wrapMode: Text.NoWrap
+                                            elide: Text.ElideRight
+                                            maximumLineCount: 1
+                                        }
+
+                                        StyledRect {
+                                            visible: rowContent.senderInfo.count > 1
+                                            Layout.leftMargin: Theme.spacingXS
+                                            implicitWidth: Math.max(18, Math.ceil(rowCountText.implicitWidth) + 10)
+                                            implicitHeight: 17
+                                            radius: 8.5
+                                            color: Theme.surfaceContainerHigh
+
+                                            StyledText {
+                                                id: rowCountText
+                                                anchors.centerIn: parent
+                                                text: String(rowContent.senderInfo.count)
+                                                font.pixelSize: Theme.fontSizeSmall - 1
+                                                font.weight: Font.Medium
+                                                color: Theme.surfaceTextMedium
+                                                wrapMode: Text.NoWrap
+                                            }
+                                        }
+
+                                        Item {
+                                            Layout.fillWidth: true
+                                        }
+
+                                        HoverHandler {
+                                            onHoveredChanged: {
+                                                if (hovered && rowContent.senderInfo.tooltip !== "")
+                                                    windowTooltip.show(senderStrip, rowContent.senderInfo.tooltip, "bottom");
+                                                else
+                                                    windowTooltip.hide(senderStrip);
+                                            }
+                                        }
                                     }
 
                                     StyledRect {
@@ -1718,7 +1783,8 @@ FloatingWindow {
                                         delegate: StyledRect {
                                             id: rowSnoozeChip
                                             required property var modelData
-                                            width: Math.min(snoozeFlow.width, rowSnoozeLabel.implicitWidth + Theme.spacingM)
+                                            readonly property real maxLabelWidth: Math.max(40, snoozeFlow.width - Theme.spacingS * 2)
+                                            width: Math.min(snoozeFlow.width, Math.ceil(rowSnoozeLabel.implicitWidth) + Theme.spacingS * 2)
                                             height: 26
                                             radius: 13
                                             color: Theme.surfaceContainerHighest
@@ -1726,7 +1792,8 @@ FloatingWindow {
                                             StyledText {
                                                 id: rowSnoozeLabel
                                                 anchors.centerIn: parent
-                                                width: Math.min(implicitWidth, rowSnoozeChip.width - Theme.spacingS * 2)
+                                                width: Math.min(Math.ceil(implicitWidth), rowSnoozeChip.maxLabelWidth)
+                                                wrapMode: Text.NoWrap
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: rowSnoozeChip.modelData.label
                                                 font.pixelSize: Theme.fontSizeSmall

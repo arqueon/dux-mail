@@ -62,10 +62,16 @@ func (r *Repo) ListThreads(ctx context.Context, f ThreadFilter) ([]models.Thread
 			query, args := latest.Query()
 			s.OrderExpr(sql.Expr("("+query+") DESC", args...))
 		}, ent.Desc(thread.FieldID))
-	} else if f.SnoozedOnly {
-		q = q.Order(ent.Asc(thread.FieldSnoozedUntil), ent.Desc(thread.FieldLastMessageAt), ent.Desc(thread.FieldID))
 	} else {
-		q = q.Order(ent.Desc(thread.FieldLastMessageAt), ent.Desc(thread.FieldID))
+		q = q.WithMessages(func(m *ent.MessageQuery) {
+			m.Select(message.FieldID, message.FieldDate, message.FieldFrom).
+				Order(ent.Desc(message.FieldDate), ent.Desc(message.FieldID))
+		})
+		if f.SnoozedOnly {
+			q = q.Order(ent.Asc(thread.FieldSnoozedUntil), ent.Desc(thread.FieldLastMessageAt), ent.Desc(thread.FieldID))
+		} else {
+			q = q.Order(ent.Desc(thread.FieldLastMessageAt), ent.Desc(thread.FieldID))
+		}
 	}
 	switch {
 	case f.SnoozedOnly:
@@ -148,6 +154,13 @@ func (r *Repo) ListThreads(ctx context.Context, f ThreadFilter) ([]models.Thread
 			if len(sent.To) > 0 {
 				summary.Participants = sent.To
 			}
+		} else if !f.SentOnly {
+			for _, m := range t.Edges.Messages {
+				if m.From != "" {
+					summary.LastSender = m.From
+					break
+				}
+			}
 		}
 		out = append(out, summary)
 	}
@@ -159,7 +172,7 @@ func (r *Repo) GetThread(ctx context.Context, id int) (*models.ThreadDetail, err
 	t, err := r.client.Thread.Query().
 		Where(thread.IDEQ(id)).
 		WithAccount().
-		WithMessages(func(q *ent.MessageQuery) { q.Order(ent.Asc(message.FieldDate)) }).
+		WithMessages(func(q *ent.MessageQuery) { q.Order(ent.Asc(message.FieldDate), ent.Asc(message.FieldID)) }).
 		Only(ctx)
 	if err != nil {
 		return nil, err
@@ -187,6 +200,12 @@ func (r *Repo) GetThread(ctx context.Context, id int) (*models.ThreadDetail, err
 			})
 		}
 		d.Messages = append(d.Messages, mv)
+	}
+	for i := len(t.Edges.Messages) - 1; i >= 0; i-- {
+		if t.Edges.Messages[i].From != "" {
+			d.LastSender = t.Edges.Messages[i].From
+			break
+		}
 	}
 	return d, nil
 }

@@ -375,6 +375,16 @@ func runList(cmd *cobra.Command, args []string) error {
 	if err := json.Unmarshal(raw, &threads); err != nil {
 		return err
 	}
+	acctEmails := map[string]string{}
+	if rawAccts, err := c.Call("accounts.list", nil); err == nil {
+		var accts []models.AccountView
+		if json.Unmarshal(rawAccts, &accts) == nil {
+			for _, a := range accts {
+				acctEmails[a.ID] = a.Email
+			}
+		}
+	}
+	meLabel := i18n.T("me")
 	for _, t := range threads {
 		mark := " "
 		if t.Unread {
@@ -384,11 +394,8 @@ func runList(cmd *cobra.Command, args []string) error {
 		if t.Starred {
 			star = "★"
 		}
-		from := ""
-		if len(t.Participants) > 0 {
-			from = t.Participants[0]
-		}
-		fmt.Printf("%s%s %5d  %-16s  %-28.28s  %s\n",
+		from := formatListSenders(t, acctEmails[t.AccountID], meLabel, 28)
+		fmt.Printf("%s%s %5d  %-16s  %s  %s\n",
 			mark, star, t.ID, t.LastMessageAt.Local().Format("Jan 02 15:04"), from, t.Subject)
 	}
 	return nil

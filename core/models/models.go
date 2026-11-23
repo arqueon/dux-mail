@@ -31,6 +31,7 @@ type ThreadSummary struct {
 	Snippet          string     `json:"snippet"`
 	LastMessageAt    time.Time  `json:"lastMessageAt"`
 	Participants     []string   `json:"participants"`
+	LastSender       string     `json:"lastSender,omitempty"`
 	Unread           bool       `json:"unread"`
 	Starred          bool       `json:"starred"`
 	InInbox          bool       `json:"inInbox"`

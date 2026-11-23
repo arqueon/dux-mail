@@ -6,9 +6,36 @@ const vm = require('node:vm');
 const plugin = path.join(__dirname, '../../dms-plugin');
 const source = fs.readFileSync(path.join(plugin, 'DankmailWidget.qml'), 'utf8');
 function rig() {
-    const root = {_statusReqId: 1, _threadsReqId: 2, _syncReqId: 3, threads: [{id: 9}], accounts: [{}], syncing: true, unread: 4, dnd: true, requestError: ''};
-    const context = vm.createContext({root, syncGuard: {stop() {}}, I18n: {trFor: (_id, text) => text}});
-    for (const name of ['clearConnectionState', 'handleResponse']) {
+    const root = {
+        _statusReqId: 1,
+        _threadsReqId: 2,
+        _syncReqId: 3,
+        threads: [{id: 9}],
+        accounts: [{id: 'acc-1', email: 'ruben.garcia.sanchez@udg.mx'}],
+        syncing: true,
+        unread: 4,
+        dnd: true,
+        requestError: ''
+    };
+    const context = vm.createContext({
+        root,
+        syncGuard: {stop() {}},
+        I18n: {trFor: (_id, text) => text === 'me' ? 'yo' : text}
+    });
+    for (const name of [
+        'clearConnectionState',
+        'handleResponse',
+        'accountEmailOf',
+        'decodeBase64Utf8',
+        'decodeMimeWords',
+        'parseAddr',
+        'displayAddrName',
+        'isSelfAddr',
+        'shortSenderName',
+        'senderKey',
+        'senderInfoOf',
+        'senderOf'
+    ]) {
         const fn = source.match(new RegExp('    function ' + name + '\\([^]*?\\n    }'));
         assert.ok(fn, name);
         root[name] = vm.runInContext('(' + fn[0].trim() + ')', context);
@@ -67,4 +94,35 @@ test('plugin uses DCommon widgets and declares Dux Shell >=2.0.0 compatibility',
         assert.ok(!text.includes('import qs.Widgets'), `${file}: deprecated qs.Widgets import`);
         assert.equal((text.match(/\bDank(?:ActionButton|Flickable|Icon|Button|Toggle|TextField|ListView|Dropdown|Slider|Tooltip)\b/g) || []).length, 0, `${file}: uses deprecated Dank* widget`);
     }
+});
+test('senderInfoOf formats threads, round-trips, multi-participants, and drafts', () => {
+    const r = rig();
+    const me = 'RUBEN JUAN SEBASTIAN GARCIA SANCHEZ <ruben.garcia.sanchez@udg.mx>';
+    const martin = 'MARTIN PIZANO MORENO <martin.pizano@udg.mx>';
+    const melanie = 'MELANIE REBECA ESTRADA SANCHEZ <melanie@alumnos.udg.mx>';
+
+    const single = r.senderInfoOf({accountId: 'acc-1', participants: ['Notificaciones <n@banamex.com>'], messageCount: 1});
+    assert.deepEqual(JSON.parse(JSON.stringify(single)), {prefix: '', latest: 'Notificaciones', count: 0});
+
+    const reply = r.senderInfoOf({accountId: 'acc-1', participants: [me, martin], lastSender: martin, messageCount: 2});
+    assert.deepEqual(JSON.parse(JSON.stringify(reply)), {prefix: 'yo, ', latest: 'MARTIN PIZANO MORENO', count: 2});
+    assert.equal(r.senderOf({accountId: 'acc-1', participants: [me, martin], lastSender: martin, messageCount: 2}), 'yo, MARTIN PIZANO MORENO');
+
+    const roundTrip = r.senderInfoOf({accountId: 'acc-1', participants: [melanie, me], lastSender: melanie, messageCount: 3});
+    assert.deepEqual(JSON.parse(JSON.stringify(roundTrip)), {prefix: 'yo, ', latest: 'MELANIE REBECA ESTRADA SANCHEZ', count: 3});
+
+    const many = r.senderInfoOf({
+        accountId: 'acc-1',
+        participants: [
+            'Ernesto Antonio Zarco Ortiz <e@x.org>',
+            'Lucas Ruppel <l@x.org>',
+            'Macarena Francisca Williamson Modesto <m@x.org>'
+        ],
+        lastSender: 'Macarena Francisca Williamson Modesto <m@x.org>',
+        messageCount: 11
+    });
+    assert.deepEqual(JSON.parse(JSON.stringify(many)), {prefix: 'Ernesto, …, ', latest: 'Macarena Francisca Williamson Modesto', count: 11});
+
+    assert.deepEqual(JSON.parse(JSON.stringify(r.senderInfoOf({to: []}))), {prefix: '', latest: 'Draft', count: 0});
+    assert.deepEqual(JSON.parse(JSON.stringify(r.senderInfoOf({to: ['Ada Lovelace <ada@x.org>']}))), {prefix: '', latest: 'Ada Lovelace', count: 0});
 });
