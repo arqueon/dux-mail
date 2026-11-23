@@ -2,7 +2,7 @@
   "id": "dankmailUnread",
   "name": "Dux Mail Unread",
   "description": "Bar unread badge, per-account filter, and Inbox/Starred/Drafts triage popout for Dux Mail. Companion to the separate Dux Mail desktop app; requires its dmail daemon.",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "author": "arqueon",
   "type": "widget",
   "capabilities": [

@@ -2,6 +2,17 @@
 
 All notable changes to **Dux Mail** (`dux-mail`, formerly **DankMail** — `dmail` daemon, `dmail mcp` server, Quickshell UI, and the `dankmailUnread` / **Dux Mail Unread** Dux Shell companion) are documented in this file.
 
+## [0.6.2] - 2026-11-23
+
+### Fixed
+- **Draft attachment preservation & fail-closed MIME**:
+  - Preserved `messageId` and `attachmentId` on `provider.AttachmentFile`, `gmail.draftItem`, and `drafts.MergeRemote` (reconciling local file paths on disk when still present).
+  - Added synchronous outgoing attachment hydration (`hydrateOutgoingAttachments`) before `ops.compose`, `ops.reply`, and `drafts.save`, downloading remote draft attachments to local cache when needed and refusing to save or send (or delete the draft) if an attachment cannot be resolved or has an empty payload.
+  - Made `mailmime.resolveAttachment` fail closed when both `Path` and `Data` are missing so 0-byte attachments can never be silently MIME-encoded and sent.
+- **Direct attachment opening & error visibility (`TriageWindow.qml`, `ComposeModal.qml`, `DankMailService.qml`)**:
+  - Extended `attachments.open` to open local file paths and draft attachments directly without requiring `threadId`.
+  - Made attachment chips clickable inside draft previews and the compose modal (`openDraftAttachment`), flagged empty 0-byte attachments (`empty (0 B)`), and surfaced actionable error messages instead of silently falling back to webmail (reserving webmail fallback for providers without direct attachment download).
+
 ## [0.6.1] - 2026-11-23
 
 ### Changed
