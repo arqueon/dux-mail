@@ -2,6 +2,16 @@
 
 All notable changes to **Dux Mail** (`dux-mail`, formerly **DankMail** — `dmail` daemon, `dmail mcp` server, Quickshell UI, and the `dankmailUnread` / **Dux Mail Unread** Dux Shell companion) are documented in this file.
 
+## [0.6.1] - 2026-11-23
+
+### Changed
+- **Thread list sender hierarchy & message counts**:
+  - Added `lastSender` to `models.ThreadSummary` (populated from the newest cached message in `ListThreads` and `GetThread`, keeping the Sent view's outgoing recipients intact), so round-trip conversations (`A → B → A`) always identify the latest sender instead of the last first-appearance participant.
+  - Formatted multi-message thread rows across the triage window (`quickshell/Common/Senders.js` + `TriageWindow.qml`), the Dux Shell companion (`dms-plugin/DankmailWidget.qml`), and `dmail list` with Gmail-style comma-separated participants: localized `"me"` (`"yo"` / `"eu"`), shortened earlier participants, emphasized latest sender, a compact thread message count badge when `messageCount > 1`, full chronological participant hover tooltips, and row avatars using the latest non-self participant when available.
+
+### Fixed
+- **In-place snooze preset chips (`TriageWindow.qml`)**: sized each preset pill from `Math.ceil(implicitWidth) + Theme.spacingS * 2` with `Text.NoWrap` so `In 1 hour`, `This evening`, `Tomorrow`, `This weekend`, and `Next week` no longer truncate inside the row hover overlay.
+
 ## [0.6.0] - 2026-11-15
 
 ### Added
