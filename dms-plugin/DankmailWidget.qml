@@ -48,6 +48,59 @@ PluginComponent {
         };
     }
 
+    // Stable accent for a sender: hash of the sender key mapped onto
+    // the accent slots (the same palette the account dots use), so a
+    // person keeps one color across rows and refreshes. Mirrors the
+    // app's DankMailService.senderColor without its hard-coded hexes.
+    function senderAccent(key) {
+        let h = 0;
+        const s = String(key || "");
+        for (let i = 0; i < s.length; i++)
+            h = (h * 31 + s.charCodeAt(i)) & 0x7fffffff;
+        const pair = Theme.accents ? Theme.accents[accentSlots[h % accentSlots.length]] : null;
+        return {
+            "container": pair?.container ?? Theme.primary,
+            "onContainer": pair?.onContainer ?? Theme.onPrimary
+        };
+    }
+
+    // Raw address of the last sender (drafts have none, like the
+    // avatarRaw the app's TriageWindow uses).
+    function lastSenderRawOf(t) {
+        if (!t || Array.isArray(t.to))
+            return "";
+        if (t.lastSender)
+            return String(t.lastSender);
+        // Mirror senderInfoOf: last participant after key dedupe.
+        const participants = Array.isArray(t.participants) ? t.participants.filter(Boolean) : [];
+        const seen = {};
+        let last = "";
+        for (let i = 0; i < participants.length; i++) {
+            const k = root.senderKey(participants[i], root.accountEmailOf(t.accountId));
+            if (!k || seen[k])
+                continue;
+            seen[k] = true;
+            last = participants[i];
+        }
+        return last;
+    }
+
+    // Gmail-style avatar info for a row: initial of the last sender
+    // over the sender's stable accent (like the app's TriageWindow).
+    function senderAvatarOf(t) {
+        const raw = root.lastSenderRawOf(t);
+        const initial = root.displayAddrName(raw).charAt(0).toUpperCase();
+        return {
+            "initial": initial !== "" ? initial : "?",
+            "accent": root.senderAccent(root.senderKey(raw, t ? root.accountEmailOf(t.accountId) : ""))
+        };
+    }
+
+    // Row chrome: account strip width matches the app's TriageWindow;
+    // the avatar is ~28 px (iconSizeMedium is only 20, too small here).
+    readonly property int accountStripWidth: 6
+    readonly property real avatarSize: Theme.iconSizeLarge - Theme.spacingXS
+
     readonly property string socketPath: {
         const rt = Quickshell.env("XDG_RUNTIME_DIR");
         return (rt && rt !== "" ? rt : "/tmp") + "/duxmail.sock";
@@ -703,14 +756,16 @@ PluginComponent {
                                 width: viewLabel.implicitWidth + Theme.spacingL
                                 height: Theme.iconSize + Theme.spacingXS
                                 radius: Theme.cornerRadius
-                                color: active ? Theme.primary : "transparent"
+                                // dcal-style tinted tab instead of a solid fill.
+                                color: active ? Qt.alpha(Theme.primary, 0.12) : "transparent"
 
                                 StyledText {
                                     id: viewLabel
                                     anchors.centerIn: parent
                                     text: parent.modelData.label
                                     font.pixelSize: Theme.fontSizeSmall
-                                    color: parent.active ? Theme.primaryText : Theme.surfaceVariantText
+                                    font.weight: parent.active ? Font.Medium : Font.Normal
+                                    color: parent.active ? Theme.primary : Theme.surfaceVariantText
                                 }
 
                                 TapHandler {
@@ -831,17 +886,39 @@ PluginComponent {
                                 delegate: Rectangle {
                                     id: mailRow
                                     required property var modelData
+                                    readonly property var accountStripAccent: root.accountAccent(mailRow.modelData.accountId)
+                                    readonly property var senderAvatar: root.senderAvatarOf(mailRow.modelData)
 
                                     width: threadColumn.width
                                     height: Theme.iconSizeLarge + Theme.spacingL * 2
                                     radius: Theme.cornerRadiusSmall
-                                    color: rowHover.hovered ? Theme.surfaceContainerHigh : "transparent"
+                                    // dcal-style primary state layer instead of a
+                                    // plain surface hover tint.
+                                    color: rowHover.hovered ? Qt.alpha(Theme.primary, rowTap.pressed ? 0.12 : 0.08) : "transparent"
+
+                                    Behavior on color {
+                                        ColorAnimation { duration: 100; easing.type: Easing.OutCubic }
+                                    }
 
                                     HoverHandler {
                                         id: rowHover
                                     }
 
-                                    // Row body: unread dot, sender/subject, star, time.
+                                    // Account color strip on the leading edge —
+                                    // same accent as the account filter dots.
+                                    // The pill radius keeps it inside the row's
+                                    // rounded corners (Qt clamps to width/2).
+                                    Rectangle {
+                                        anchors.left: parent.left
+                                        anchors.top: parent.top
+                                        anchors.bottom: parent.bottom
+                                        width: root.accountStripWidth
+                                        radius: mailRow.radius
+                                        color: mailRow.accountStripAccent.container
+                                    }
+
+                                    // Row body: unread dot, sender avatar,
+                                    // sender/subject, star, time.
                                     Row {
                                         anchors.left: parent.left
                                         anchors.right: rowActions.visible ? rowActions.left : parent.right
@@ -858,8 +935,30 @@ PluginComponent {
                                             anchors.verticalCenter: parent.verticalCenter
                                         }
 
+                                        // Gmail-style sender avatar: initial over
+                                        // the sender's stable accent (drafts have
+                                        // no logical sender and skip it).
+                                        Rectangle {
+                                            id: senderAvatarBubble
+                                            visible: !Array.isArray(mailRow.modelData.to)
+                                            width: root.avatarSize
+                                            height: root.avatarSize
+                                            radius: Theme.fullRadius(width, height)
+                                            color: mailRow.senderAvatar.accent.container
+                                            anchors.verticalCenter: parent.verticalCenter
+
+                                            StyledText {
+                                                anchors.centerIn: parent
+                                                text: mailRow.senderAvatar.initial
+                                                font.pixelSize: Theme.fontSizeMedium
+                                                font.weight: Font.DemiBold
+                                                color: mailRow.senderAvatar.accent.onContainer
+                                                maximumLineCount: 1
+                                            }
+                                        }
+
                                         Column {
-                                            width: parent.width - Theme.spacingS * 3 - timeLabel.implicitWidth - (starMark.visible ? starMark.width + Theme.spacingS : 0)
+                                            width: parent.width - Theme.spacingS * 3 - (senderAvatarBubble.visible ? senderAvatarBubble.width + Theme.spacingS : 0) - timeLabel.implicitWidth - (starMark.visible ? starMark.width + Theme.spacingS : 0)
                                             spacing: 0
 
                                             Row {
@@ -1058,6 +1157,7 @@ PluginComponent {
                                     // window (the action buttons' own MouseAreas
                                     // take precedence over this handler).
                                     TapHandler {
+                                        id: rowTap
                                         onTapped: {
                                             if (root.mailboxView === "drafts") {
                                                 root.uiCall("ui.editDraft", {

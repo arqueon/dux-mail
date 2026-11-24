@@ -1188,7 +1188,12 @@ FloatingWindow {
                             linkColor: String(Theme.primary),
                             quoteColor: String(Theme.surfaceTextMedium),
                             linkLabel: I18n.tr("Link", "message body"),
-                            markdownItalics: true
+                            markdownItalics: true,
+                            headingColor: String(Theme.primary),
+                            codeBg: String(Theme.surfaceContainer),
+                            tableHeaderColor: String(Theme.surfaceContainerHigh),
+                            monoFont: String(Theme.monoFontFamily),
+                            monoSize: Theme.fontSizeSmall
                         })
                     onLinkActivated: link => {
                         const clean = BodyFormatter.unwrapUrl ? BodyFormatter.unwrapUrl(link) : link;

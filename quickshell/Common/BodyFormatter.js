@@ -7,6 +7,23 @@ function escapeHtml(value) {
         .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// Zero-width break opportunities for unbroken runs. Qt's word wrap never
+// splits a single long token (raw URLs, tracking IDs, base64 blobs, ASCII
+// tables) and the reading pane has no horizontal scroll, so such tokens used
+// to overflow past the right edge. U+200B is a mandatory break point (UAX #14
+// LB8) that Qt honors, so sprinkle it into long runs. Applied only to
+// display text: href targets and other attributes stay byte-exact.
+var SOFT_BREAK = "\u200b";
+
+function softenRuns(value) {
+    return String(value).replace(/[^\s\u0001\u200b]{48,}/g, function (token) {
+        // Stash markers (\x01N\x01) and existing soft breaks split runs, so
+        // re-processing (e.g. nested quotes) never doubles them or corrupts
+        // a marker.
+        return token.replace(/(.{24})/g, "$1" + SOFT_BREAK);
+    });
+}
+
 function safeUrl(value) {
     return /^(https?:\/\/[^\s/?#]+|mailto:[^\s@]+@[^\s@]+)[^\s]*$/i.test(value)
         && !/[\x00-\x20\x7f<>"'\\]/.test(value);
@@ -280,11 +297,13 @@ function replaceMarkdownImagesAndLinks(s, anchor, put, linkLabel) {
     return out;
 }
 
-function inline(text, color, linkLabel, markdownItalics) {
+function inline(text, color, linkLabel, markdownItalics, monoFont) {
     const stash = [];
     const put = html => "\x01" + (stash.push(html) - 1) + "\x01";
     const singleStarTag = markdownItalics ? "i" : "b";
-    const emphasis = value => escapeHtml(value)
+    // Monospace family for inline code / attachment chips, when provided.
+    const codeOpen = monoFont ? '<code style="font-family:\'' + monoFont + '\'">' : "<code>";
+    const emphasis = value => escapeHtml(softenRuns(value))
         .replace(/\*\*\*([^*\n]+)\*\*\*/g, "<b><i>$1</i></b>")
         .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
         .replace(/(^|[\s(«"'])__([^_\n]+)__(?=$|[\s.,!?:;)»"'])/g, "$1<b>$2</b>")
@@ -300,9 +319,9 @@ function inline(text, color, linkLabel, markdownItalics) {
             : emphasis(label);
     };
     let s = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
-    s = s.replace(/`([^`\n]+)`/g, (m, code) => put('<code>' + escapeHtml(code) + '</code>'));
+    s = s.replace(/`([^`\n]+)`/g, (m, code) => put(codeOpen + escapeHtml(softenRuns(code)) + '</code>'));
     s = s.replace(/!\[([^\]]*)\]\(\s*data:[^)\s]*\)?/gi, (m, alt) => alt.trim() ? put(escapeHtml(alt.trim())) : "");
-    s = s.replace(/\[image:\s*([^\]]+)\]/gi, (m, alt) => put('<code>[' + escapeHtml(alt.trim()) + ']</code>'));
+    s = s.replace(/\[image:\s*([^\]]+)\]/gi, (m, alt) => put(codeOpen + '[' + escapeHtml(alt.trim()) + ']' + '</code>'));
     s = replaceMarkdownImagesAndLinks(s, anchor, put, linkLabel);
     s = s.replace(/(?:https?:\/\/|mailto:)[^\s<>"'\x01]+/gi, rawUrl => {
         const cleanRaw = rawUrl.replace(/[.,;!?:)\]}*]+$/, "");
@@ -322,9 +341,17 @@ function inline(text, color, linkLabel, markdownItalics) {
 
 function format(text, options) {
     options = options || {};
-    const color = /^#[0-9a-f]{3,8}$/i.test(String(options.linkColor)) ? String(options.linkColor) : "#517cbb";
-    const quoteColor = /^#[0-9a-f]{3,8}$/i.test(String(options.quoteColor)) ? String(options.quoteColor) : color;
-    const render = value => inline(value, color, options.linkLabel || "Link", !!options.markdownItalics);
+    const safeHex = (value, fallback) => /^#[0-9a-f]{3,8}$/i.test(String(value)) ? String(value) : fallback;
+    const color = safeHex(options.linkColor, "#517cbb");
+    const quoteColor = safeHex(options.quoteColor, color);
+    // Optional presentation tokens (validated the same way as the colors).
+    const headingColor = safeHex(options.headingColor, "");
+    const codeBg = safeHex(options.codeBg, "");
+    const tableHeaderColor = safeHex(options.tableHeaderColor, "");
+    const monoFont = (typeof options.monoFont === "string" && options.monoFont !== "" && /^['A-Za-z0-9 ,\-]{1,64}$/.test(options.monoFont)) ? options.monoFont : "";
+    const monoSizeRaw = Number(options.monoSize);
+    const monoSize = (monoSizeRaw >= 8 && monoSizeRaw <= 32) ? Math.round(monoSizeRaw) : 0;
+    const render = value => inline(value, color, options.linkLabel || "Link", !!options.markdownItalics, monoFont);
     const lines = normalizePlainEmail(text).split("\n");
     const cells = line => line.trim().replace(/^\||\|$/g, "").split("|").map(value => value.trim());
     const tableSeparator = line => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
@@ -377,7 +404,14 @@ function format(text, options) {
             i++;
             while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++]);
             if (i < lines.length) i++;
-            html += '<pre style="margin-top:8px; margin-bottom:8px">' + escapeHtml(code.join("\n")) + '</pre>';
+            // pre-wrap keeps the line structure while letting content wrap:
+            // without it, Qt treats <pre> as non-wrapping and long lines
+            // overflow the pane (verified empirically against Qt 6.12).
+            html += '<pre style="white-space:pre-wrap; margin-top:8px; margin-bottom:8px'
+                + (codeBg ? '; background-color:' + codeBg : '')
+                + (monoFont ? '; font-family:\'' + monoFont + '\'' : '')
+                + (monoSize ? '; font-size:' + monoSize + 'px' : '')
+                + '">' + escapeHtml(softenRuns(code.join("\n"))) + '</pre>';
             continue;
         }
         if (/^\s*>/.test(line)) {
@@ -385,20 +419,30 @@ function format(text, options) {
             while (i < lines.length && /^\s*>/.test(lines[i])) quoted.push(lines[i++].replace(/^\s*> ?/, ""));
             // Bound nesting, even for hostile or malformed message text.
             const depth = options.depth || 0;
-            html += '<blockquote style="margin-left:16px; margin-top:8px; margin-bottom:8px"><font color="' + quoteColor + '">' + (depth < 5
+            // Each nesting level indents a bit further so reply chains
+            // read as a staircase.
+            html += '<blockquote style="margin-left:' + (16 + depth * 8) + 'px; margin-top:8px; margin-bottom:8px"><font color="' + quoteColor + '">' + (depth < 5
                 ? format(quoted.join("\n"), {linkColor: color, quoteColor: quoteColor, linkLabel: options.linkLabel, markdownItalics: options.markdownItalics, depth: depth + 1})
                 : quoted.map(render).join('<br>')) + '</font></blockquote>';
             continue;
         }
         const heading = line.match(/^\s*#{1,6}\s+(.*)$/);
         if (heading) {
-            html += '<p style="margin-top:12px; margin-bottom:6px"><b>' + render(heading[1]) + '</b></p>';
+            const inner = render(heading[1]);
+            html += '<p style="margin-top:12px; margin-bottom:6px"><b>'
+                + (headingColor ? '<font color="' + headingColor + '">' : "")
+                + inner
+                + (headingColor ? '</font>' : "")
+                + '</b></p>';
             i++; continue;
         }
         if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { html += '<hr>'; i++; continue; }
         if (i + 1 < lines.length && line.includes('|') && tableSeparator(lines[i + 1])) {
             const header = cells(line);
-            html += '<table border="1" cellspacing="0" cellpadding="6" width="100%"><tr>' + header.map(c => '<th>' + render(c) + '</th>').join('') + '</tr>';
+            // Borderless tables with a tinted header row read cleaner than
+            // the HTML4 default 1px grid.
+            const thOpen = tableHeaderColor ? '<th bgcolor="' + tableHeaderColor + '">' : '<th>';
+            html += '<table border="0" cellspacing="0" cellpadding="6" width="100%"><tr>' + header.map(c => thOpen + render(c) + '</th>').join('') + '</tr>';
             i += 2;
             while (i < lines.length && lines[i].trim() && lines[i].includes('|')) {
                 const row = cells(lines[i++]);

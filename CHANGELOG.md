@@ -2,6 +2,23 @@
 
 All notable changes to **Dux Mail** (`dux-mail`, formerly **DankMail** — `dmail` daemon, `dmail mcp` server, Quickshell UI, and the `dankmailUnread` / **Dux Mail Unread** Dux Shell companion) are documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **dcal aesthetic alignment (`TriageWindow.qml`, `Widgets/DankTooltip.qml`)** — approved via `.revision/estetica-dcal-2026-11-23.md` (8/8):
+  - Selected thread and draft rows now use the dcal selection pattern: soft `primaryBackground` tint + 2 px `Theme.primary` border (replacing the flat `surfaceSelected` fill), with the account strip inset so the border reads uniformly.
+  - Header and label panel are translucent dcal-style veils (`surfaceContainer` at 0.5 / 0.6 over the window surface) instead of solid fills.
+  - Filter chips, the Labels chip, label-tree rows, and the message-step chips use the dcal active pattern: `primaryHover` tint (primary α 0.12) with `Theme.primary` Medium text instead of solid `primaryContainer`.
+  - Unread threads show a quiet 8 px `Theme.primary` dot beside the sender name, in addition to the bold weight.
+  - Tooltips switched to the dcal look: `surfaceContainerHigh` surface, `cornerRadius` 12, faint `outlineLight` border, surface text, and a 200 ms fade-in.
+  - Region separators softened from `outlineMedium` to `outlineLight` (outlineMedium stays reserved for menu/toast borders).
+- **dcal aesthetic alignment, Dux Shell popout (`dms-plugin/DankmailWidget.qml`)**: Inbox/Starred/Drafts tabs use the same dcal pattern (primary tint α 0.12 with primary Medium text instead of a solid primary fill); thread rows get a primary state layer (hover α 0.08 / press α 0.12, 100 ms OutCubic) instead of a surface hover; and each row now carries a Gmail-style sender avatar (initial over a stable per-sender accent derived from `Theme.accents`, mirroring the app's `senderColor` hash without hard-coded hexes) plus a 6 px account-color strip reusing the account-dot accent function.
+- **Richer body rendering (`Common/BodyFormatter.js`, `TriageWindow.qml`, `ComposeModal.qml`)**: `format()` now accepts validated presentation tokens and the four render call sites pass them from the live theme — headings render in `Theme.primary`; fenced code blocks get a `Theme.surfaceContainer` background plus the theme's monospace family and size; inline code and `[image: …]` chips use the monospace family; tables drop the HTML4 1 px grid for a borderless layout with a `Theme.surfaceContainerHigh` tinted header row; and nested quote chains indent progressively (16 + 8 px per level) so reply histories read as a staircase. All options validate the same way as the existing colors and degrade cleanly when absent.
+- **Icon family alignment with dcal / DankCalendar (`quickshell/assets/duxmail.svg`, `quickshell/assets/duxmail-tray.svg`)**: redesigned the app and tray icons as siblings of `dankcalendar.svg` / `dankcalendar-tray.svg` — same 64×64 canvas, light `#F5F0FF→#D0BCFF` gradient body, `#553C9A` header band, purple envelope-fold chevron, and a `#44337A` accent square echoing the calendar's highlighted "today" cell. Replaces the solid blue tile with red notification dot.
+
+### Fixed
+- **Long-token body wrapping (`quickshell/Common/BodyFormatter.js`)**: message bodies containing unbroken tokens (raw URLs, tracking IDs, base64 blobs, ASCII tables) overflowed past the right edge of the reading pane because Qt word wrap never splits a single token and the pane has no horizontal scroll. Inserted zero-width break opportunities (U+200B, a mandatory UAX #14 break point honored by Qt) every 24 characters into unbroken runs of 48+ characters, across paragraphs, inline `<code>` spans, and `<pre>` blocks. Display text only — `href` targets and other attributes stay byte-exact, and softening is idempotent for nested quotes. Additionally, fenced code blocks now render with `white-space:pre-wrap` because Qt lays out `<pre>` as non-wrapping, so pre-formatted lines overtook the pane edge regardless of break points. Verified empirically against Qt 6.12 (`qmlscene` harness): TextEdit honors U+200B in paragraphs, inline code, and table cells; real re-rendered bodies of three marketing emails now measure within the pane width.
+
 ## [0.6.2] - 2026-11-23
 
 ### Fixed

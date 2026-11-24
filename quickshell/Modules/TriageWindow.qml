@@ -427,7 +427,12 @@ FloatingWindow {
         return BodyFormatter.format(text, {
             linkColor: String(Theme.primary),
             quoteColor: String(Theme.surfaceTextMedium),
-            linkLabel: I18n.tr("Link", "message body")
+            linkLabel: I18n.tr("Link", "message body"),
+            headingColor: String(Theme.primary),
+            codeBg: String(Theme.surfaceContainer),
+            tableHeaderColor: String(Theme.surfaceContainerHigh),
+            monoFont: String(Theme.monoFontFamily),
+            monoSize: Theme.fontSizeSmall
         });
     }
 
@@ -568,10 +573,11 @@ FloatingWindow {
         spacing: 0
 
         // ---- header ----------------------------------------------------
+        // dcal-style translucent veil over the window surface.
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 56
-            color: Theme.surfaceContainer
+            color: Theme.withAlpha(Theme.surfaceContainer, 0.5)
 
             RowLayout {
                 anchors.fill: parent
@@ -759,7 +765,7 @@ FloatingWindow {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
-            color: Theme.outlineMedium
+            color: Theme.outlineLight
         }
 
         StyledRect {
@@ -833,7 +839,8 @@ FloatingWindow {
                     width: implicitWidth
                     height: 30
                     radius: 15
-                    color: active ? Theme.primaryContainer : "transparent"
+                    // dcal-style active chip: primary tint + primary text.
+                    color: active ? Theme.primaryHover : "transparent"
 
                     StyledText {
                         id: filterLabel
@@ -842,7 +849,8 @@ FloatingWindow {
                         wrapMode: Text.NoWrap
                         elide: Text.ElideNone
                         font.pixelSize: Theme.fontSizeSmall
-                        color: parent.active ? Theme.onPrimaryContainer : Theme.surfaceTextMedium
+                        font.weight: parent.active ? Font.Medium : Font.Normal
+                        color: parent.active ? Theme.primary : Theme.surfaceTextMedium
                     }
 
                     StateLayer {
@@ -877,7 +885,7 @@ FloatingWindow {
                 width: labelsChipRow.implicitWidth + Theme.spacingL
                 height: 30
                 radius: 15
-                color: active ? Theme.primaryContainer : "transparent"
+                color: active ? Theme.primaryHover : "transparent"
 
                 Row {
                     id: labelsChipRow
@@ -888,7 +896,7 @@ FloatingWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         name: "label"
                         size: 16
-                        color: labelsChip.active ? Theme.onPrimaryContainer : Theme.surfaceTextMedium
+                        color: labelsChip.active ? Theme.primary : Theme.surfaceTextMedium
                     }
 
                     StyledText {
@@ -897,7 +905,8 @@ FloatingWindow {
                         textFormat: Text.PlainText
                         wrapMode: Text.NoWrap
                         font.pixelSize: Theme.fontSizeSmall
-                        color: labelsChip.active ? Theme.onPrimaryContainer : Theme.surfaceTextMedium
+                        font.weight: labelsChip.active ? Font.Medium : Font.Normal
+                        color: labelsChip.active ? Theme.primary : Theme.surfaceTextMedium
                     }
                 }
 
@@ -1101,12 +1110,13 @@ FloatingWindow {
             spacing: 0
 
             // Label panel: collapsible tree, merged by name across accounts.
+            // dcal-style translucent veil over the window surface.
             Rectangle {
                 id: labelPanel
                 visible: window.labelPanelOpen && DankMailService.labelsAvailable
                 Layout.preferredWidth: visible ? 176 : 0
                 Layout.fillHeight: true
-                color: Theme.surfaceContainerLow
+                color: Theme.withAlpha(Theme.surfaceContainer, 0.6)
 
                 ListView {
                     id: labelTree
@@ -1125,7 +1135,8 @@ FloatingWindow {
                         width: labelTree.width
                         height: 30
                         radius: Theme.cornerRadiusSmall
-                        color: active ? Theme.primaryContainer : "transparent"
+                        // dcal-style active row: primary tint + primary text.
+                        color: active ? Theme.primaryHover : "transparent"
 
                         Row {
                             anchors.fill: parent
@@ -1142,7 +1153,7 @@ FloatingWindow {
                                     visible: treeRow.modelData.hasChildren
                                     name: treeRow.modelData.expanded ? "expand_more" : "chevron_right"
                                     size: 18
-                                    color: treeRow.active ? Theme.onPrimaryContainer : Theme.surfaceTextMedium
+                                    color: treeRow.active ? Theme.primary : Theme.surfaceTextMedium
                                 }
                             }
 
@@ -1163,8 +1174,8 @@ FloatingWindow {
                                 elide: Text.ElideRight
                                 maximumLineCount: 1
                                 font.pixelSize: Theme.fontSizeSmall
-                                font.weight: treeRow.modelData.selectable ? Font.Normal : Font.Medium
-                                color: treeRow.active ? Theme.onPrimaryContainer : (treeRow.modelData.selectable ? Theme.surfaceText : Theme.surfaceTextMedium)
+                                font.weight: treeRow.active ? Font.Medium : (treeRow.modelData.selectable ? Font.Normal : Font.Medium)
+                                color: treeRow.active ? Theme.primary : (treeRow.modelData.selectable ? Theme.surfaceText : Theme.surfaceTextMedium)
                             }
                         }
 
@@ -1206,7 +1217,7 @@ FloatingWindow {
                 visible: labelPanel.visible
                 Layout.preferredWidth: visible ? 1 : 0
                 Layout.fillHeight: true
-                color: Theme.outlineMedium
+                color: Theme.outlineLight
             }
 
             // Thread list.
@@ -1335,12 +1346,16 @@ FloatingWindow {
                         height: isHidden ? 0 : Math.max(baseHeight, (rowActions.visible && rowActions.snoozing) ? rowActions.height + Theme.spacingXS * 2 : baseHeight)
                         visible: !isHidden
                         clip: true
-                        color: selected ? Theme.surfaceSelected : "transparent"
+                        // dcal-style selection: soft primary tint + 2px border.
+                        color: selected ? Theme.primaryBackground : "transparent"
+                        border.width: selected ? 2 : 0
+                        border.color: Theme.primary
 
                         Rectangle {
                             anchors.left: parent.left
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
+                            anchors.leftMargin: row.selected ? 2 : 0
                             width: window.accountStripWidth
                             color: DankMailService.accountColor(row.modelData.accountId)
                         }
@@ -1426,6 +1441,18 @@ FloatingWindow {
                                             wrapMode: Text.NoWrap
                                             elide: Text.ElideRight
                                             maximumLineCount: 1
+                                        }
+
+                                        // Unread marker: quiet primary dot
+                                        // beside the sender name.
+                                        Rectangle {
+                                            visible: row.modelData.unread
+                                            Layout.leftMargin: Theme.spacingXS
+                                            Layout.alignment: Qt.AlignVCenter
+                                            width: 8
+                                            height: 8
+                                            radius: 4
+                                            color: Theme.primary
                                         }
 
                                         StyledRect {
@@ -1835,12 +1862,16 @@ FloatingWindow {
 
                         width: draftList.width
                         height: 76
-                        color: selected ? Theme.surfaceSelected : "transparent"
+                        // dcal-style selection: soft primary tint + 2px border.
+                        color: selected ? Theme.primaryBackground : "transparent"
+                        border.width: selected ? 2 : 0
+                        border.color: Theme.primary
 
                         Rectangle {
                             anchors.left: parent.left
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
+                            anchors.leftMargin: draftRow.selected ? 2 : 0
                             width: window.accountStripWidth
                             color: DankMailService.accountColor(draftRow.modelData.accountId)
                         }
@@ -2039,7 +2070,7 @@ FloatingWindow {
             Rectangle {
                 Layout.preferredWidth: 1
                 Layout.fillHeight: true
-                color: Theme.outlineMedium
+                color: Theme.outlineLight
             }
 
             // Preview pane.
@@ -2148,7 +2179,8 @@ FloatingWindow {
                                     width: implicitWidth
                                     height: 26
                                     radius: 13
-                                    color: active ? Theme.primaryContainer : Theme.surfaceContainerHigh
+                                    // dcal-style active chip: primary tint.
+                                    color: active ? Theme.primaryHover : Theme.surfaceContainerHigh
 
                                     Row {
                                         id: msgStepRow
@@ -2161,7 +2193,7 @@ FloatingWindow {
                                             elide: Text.ElideNone
                                             font.pixelSize: Theme.fontSizeSmall
                                             font.weight: msgStepChip.active ? Font.DemiBold : Font.Normal
-                                            color: msgStepChip.active ? Theme.onPrimaryContainer : Theme.surfaceTextMedium
+                                            color: msgStepChip.active ? Theme.primary : Theme.surfaceTextMedium
                                         }
 
                                         StyledText {
@@ -2169,7 +2201,7 @@ FloatingWindow {
                                             wrapMode: Text.NoWrap
                                             elide: Text.ElideNone
                                             font.pixelSize: Theme.fontSizeSmall
-                                            color: msgStepChip.active ? Theme.onPrimaryContainer : Theme.surfaceTextAlpha
+                                            color: msgStepChip.active ? Theme.primary : Theme.surfaceTextAlpha
                                         }
                                     }
 
@@ -2873,7 +2905,7 @@ FloatingWindow {
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
-                        color: Theme.outlineMedium
+                        color: Theme.outlineLight
                     }
 
                     // Rich formatted body of the selected message.
@@ -3410,7 +3442,12 @@ FloatingWindow {
                                             linkColor: String(Theme.primary),
                                             quoteColor: String(Theme.surfaceTextMedium),
                                             linkLabel: I18n.tr("Link", "message body"),
-                                            markdownItalics: true
+                                            markdownItalics: true,
+                                            headingColor: String(Theme.primary),
+                                            codeBg: String(Theme.surfaceContainer),
+                                            tableHeaderColor: String(Theme.surfaceContainerHigh),
+                                            monoFont: String(Theme.monoFontFamily),
+                                            monoSize: Theme.fontSizeSmall
                                         })
                                         onLinkActivated: link => window.openBodyLink(link)
                                     }
@@ -3946,7 +3983,7 @@ FloatingWindow {
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
-                        color: Theme.outlineMedium
+                        color: Theme.outlineLight
                     }
 
                     DankFlickable {
@@ -3980,7 +4017,12 @@ FloatingWindow {
                                     linkColor: String(Theme.primary),
                                     quoteColor: String(Theme.surfaceTextMedium),
                                     linkLabel: I18n.tr("Link", "message body"),
-                                    markdownItalics: true
+                                    markdownItalics: true,
+                                    headingColor: String(Theme.primary),
+                                    codeBg: String(Theme.surfaceContainer),
+                                    tableHeaderColor: String(Theme.surfaceContainerHigh),
+                                    monoFont: String(Theme.monoFontFamily),
+                                    monoSize: Theme.fontSizeSmall
                                 });
                             }
                             onLinkActivated: link => window.openBodyLink(link)

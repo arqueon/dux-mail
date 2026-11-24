@@ -18,10 +18,11 @@ StyledRect {
 
     width: Math.min(maxWidth, label.implicitWidth + Theme.spacingM * 2)
     height: label.implicitHeight + Theme.spacingXS * 2 + 2
-    radius: 6
-    color: Theme.inverseSurface
+    // dcal-style tooltip: light surface, 12px radius, faint outline.
+    radius: Theme.cornerRadius
+    color: Theme.surfaceContainerHigh
     border.width: 1
-    border.color: Theme.outline
+    border.color: Theme.outlineLight
 
     function show(item, tipText, preferredSide) {
         hideTimer.stop();
@@ -70,7 +71,7 @@ StyledRect {
 
     Behavior on opacity {
         NumberAnimation {
-            duration: 100
+            duration: 200
             easing.type: Easing.OutCubic
         }
     }
@@ -80,7 +81,7 @@ StyledRect {
         anchors.centerIn: parent
         width: Math.min(implicitWidth, tooltip.maxWidth - Theme.spacingM * 2)
         text: tooltip.text
-        color: Theme.inverseOnSurface
+        color: Theme.surfaceText
         font.pixelSize: Theme.fontSizeSmall
         font.weight: Font.Medium
         elide: Text.ElideMiddle
