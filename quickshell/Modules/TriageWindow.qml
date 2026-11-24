@@ -2086,6 +2086,12 @@ FloatingWindow {
 
                     RowLayout {
                         Layout.fillWidth: true
+                        // Unwrapped text (the subject's ideal width) must never
+                        // set this row's preferred size: the column layout
+                        // would then refuse to shrink below it and every
+                        // fillWidth sibling (the body editor included) would
+                        // render past the pane.
+                        Layout.preferredWidth: 0
                         spacing: Theme.spacingS
 
                         TextEdit {
@@ -2153,6 +2159,15 @@ FloatingWindow {
                     // Thread message selector when the conversation has multiple messages.
                     Flickable {
                         Layout.fillWidth: true
+                        // The chips scroll horizontally, so contentWidth (and
+                        // with it the flickable's implicit width) runs as wide
+                        // as the unwrapped chip row. Without an explicit zero
+                        // here, that width leaked into the column layout's own
+                        // implicit size, every fillWidth sibling inherited it,
+                        // and the body editor rendered past the pane edge
+                        // (clipping lines mid-word). With preferredWidth 0 the
+                        // selector still scrolls its chips inside the pane.
+                        Layout.preferredWidth: 0
                         Layout.preferredHeight: 28
                         visible: window.visibleThreadMessages().length > 1
                         contentWidth: msgStepRowContainer.implicitWidth
@@ -2216,6 +2231,9 @@ FloatingWindow {
 
                     RowLayout {
                         Layout.fillWidth: true
+                        // Same as the subject row: the unwrapped sender chip
+                        // must not become the column's preferred width.
+                        Layout.preferredWidth: 0
                         spacing: Theme.spacingS
 
                         readonly property var lastMsg: window.previewMessage()
@@ -2347,6 +2365,15 @@ FloatingWindow {
                     DankFlickable {
                         id: rcptScroll
                         Layout.fillWidth: true
+                        // The recipient chips report a huge unwrapped implicit
+                        // width. The column layout treats each member's
+                        // implicit width as its preferred size, so without an
+                        // explicit zero the whole column could never shrink and
+                        // the body flickable inherited the poisoned width —
+                        // clipping message lines mid-word at the window edge.
+                        // Verified against a qml6 harness: with preferredWidth 0
+                        // the column tracks the pane on every resize.
+                        Layout.preferredWidth: 0
                         Layout.preferredHeight: Math.min(rcptLines.implicitHeight, 84)
                         visible: fromLine.lastMsg !== null && (rcptLines.toList.length > 0 || rcptLines.ccList.length > 0 || rcptLines.bccLikely)
                         contentHeight: rcptLines.implicitHeight
@@ -2500,6 +2527,10 @@ FloatingWindow {
                     // webmail only if direct fetch fails).
                     DankFlickable {
                         Layout.fillWidth: true
+                        // Same implicit-width neutralization as rcptScroll:
+                        // attachment chips must never set the column's
+                        // preferred width.
+                        Layout.preferredWidth: 0
                         Layout.preferredHeight: Math.min(attachFlow.implicitHeight, 2 * 30 + Theme.spacingS)
                         visible: window.previewAttachments().length > 0
                         contentHeight: attachFlow.implicitHeight
@@ -2910,16 +2941,27 @@ FloatingWindow {
 
                     // Rich formatted body of the selected message.
                     DankFlickable {
+                        id: bodyFlick
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        // A layout never shrinks a child below its implicit
+                        // width unless the minimum is explicit. The flickable's
+                        // implicit width is content-derived, so without this the
+                        // reading pane could not shrink with the window and the
+                        // editor overflowed the visible pane (clipping lines
+                        // mid-word at the window edge on narrow layouts).
+                        Layout.minimumWidth: 0
                         contentHeight: bodyText.implicitHeight + Theme.spacingL * 2
                         clip: true
 
                         TextEdit {
                             id: bodyText
-                            width: Math.min(parent.width - Theme.spacingL * 2, 760)
-                            x: (parent.width - width) / 2
+                            // Fixed offset from the viewport's left edge —
+                            // never a centering anchor against the content
+                            // item, whose width can lag window resizes.
+                            x: Theme.spacingL
                             y: Theme.spacingL
+                            width: Math.min(bodyFlick.width - Theme.spacingL * 2, 760)
                             readOnly: true
                             selectByMouse: true
                             wrapMode: TextEdit.Wrap
@@ -3987,16 +4029,22 @@ FloatingWindow {
                     }
 
                     DankFlickable {
+                        id: draftBodyFlick
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        // Same anti-shrink lock as the reading pane body.
+                        Layout.minimumWidth: 0
                         contentHeight: draftBodyPreview.implicitHeight + Theme.spacingL * 2
                         clip: true
 
                         TextEdit {
                             id: draftBodyPreview
-                            width: Math.min(parent.width - Theme.spacingL * 2, 760)
-                            x: (parent.width - width) / 2
+                            // Fixed offset from the viewport's left edge —
+                            // never a centering anchor against the content
+                            // item, whose width can lag window resizes.
+                            x: Theme.spacingL
                             y: Theme.spacingL
+                            width: Math.min(draftBodyFlick.width - Theme.spacingL * 2, 760)
                             readOnly: true
                             selectByMouse: true
                             wrapMode: TextEdit.Wrap
