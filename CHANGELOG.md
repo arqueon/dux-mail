@@ -2,7 +2,7 @@
 
 All notable changes to **Dux Mail** (`dux-mail`, formerly **DankMail** — `dmail` daemon, `dmail mcp` server, Quickshell UI, and the `dankmailUnread` / **Dux Mail Unread** Dux Shell companion) are documented in this file.
 
-## [Unreleased]
+## [0.6.3] - 2026-11-24
 
 ### Changed
 - **dcal aesthetic alignment (`TriageWindow.qml`, `Widgets/DankTooltip.qml`)** — approved via `.revision/estetica-dcal-2026-11-23.md` (8/8):
