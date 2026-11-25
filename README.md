@@ -4,7 +4,7 @@
 > A lightning-fast, keyboard-driven mail triage controller for Linux: unified multi-account inbox, local-first SQLite cache, distraction-free Markdown distiller, rich Markdown & HTML composition, and a built-in **Model Context Protocol (`dmail mcp`)** server. Ships as a **standalone desktop app** (`dmail` Go daemon + Quickshell UI) **and** an optional **Dux Shell / DankMaterialShell** bar plugin — powered by the same `dmail` daemon.
 
 <p align="center">
-  <img src="assets/screenshot.png" alt="Dux Mail triage window" width="820" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+  <img src="assets/desktop-screenshot.png" alt="Dux Mail triage window" width="820" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
 </p>
 
 ---
