@@ -155,6 +155,9 @@ FloatingWindow {
 
     // Width of the strip that marks which account a row belongs to.
     readonly property int accountStripWidth: 6
+    // Border of the selected thread/draft row. The account strip sits
+    // inside it on all three sides so it never paints over the border.
+    readonly property int selectionBorderWidth: 1
 
     function toggleSpamChecked(id) {
         const i = checkedIds.indexOf(id);
@@ -1346,17 +1349,22 @@ FloatingWindow {
                         height: isHidden ? 0 : Math.max(baseHeight, (rowActions.visible && rowActions.snoozing) ? rowActions.height + Theme.spacingXS * 2 : baseHeight)
                         visible: !isHidden
                         clip: true
-                        // dcal-style selection: soft primary tint + 2px border.
+                        // dcal-style selection: soft primary tint + thin border.
                         color: selected ? Theme.primaryBackground : "transparent"
-                        border.width: selected ? 2 : 0
+                        border.width: selected ? window.selectionBorderWidth : 0
                         border.color: Theme.primary
 
+                        // Inset by the border on left/top/bottom; the strip
+                        // narrows by the same amount so its right edge (and
+                        // the row content) does not move on selection.
                         Rectangle {
                             anchors.left: parent.left
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: row.selected ? 2 : 0
-                            width: window.accountStripWidth
+                            anchors.leftMargin: row.border.width
+                            anchors.topMargin: row.border.width
+                            anchors.bottomMargin: row.border.width
+                            width: window.accountStripWidth - row.border.width
                             color: DankMailService.accountColor(row.modelData.accountId)
                         }
 
@@ -1862,17 +1870,22 @@ FloatingWindow {
 
                         width: draftList.width
                         height: 76
-                        // dcal-style selection: soft primary tint + 2px border.
+                        // dcal-style selection: soft primary tint + thin border.
                         color: selected ? Theme.primaryBackground : "transparent"
-                        border.width: selected ? 2 : 0
+                        border.width: selected ? window.selectionBorderWidth : 0
                         border.color: Theme.primary
 
+                        // Inset by the border on left/top/bottom; the strip
+                        // narrows by the same amount so its right edge (and
+                        // the row content) does not move on selection.
                         Rectangle {
                             anchors.left: parent.left
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: draftRow.selected ? 2 : 0
-                            width: window.accountStripWidth
+                            anchors.leftMargin: draftRow.border.width
+                            anchors.topMargin: draftRow.border.width
+                            anchors.bottomMargin: draftRow.border.width
+                            width: window.accountStripWidth - draftRow.border.width
                             color: DankMailService.accountColor(draftRow.modelData.accountId)
                         }
 

@@ -2,6 +2,11 @@
 
 All notable changes to **Dux Mail** (`dux-mail`, formerly **DankMail** — `dmail` daemon, `dmail mcp` server, Quickshell UI, and the `dankmailUnread` / **Dux Mail Unread** Dux Shell companion) are documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **Thinner selection border (`TriageWindow.qml`)**: the selected thread/draft row border goes from 2 px to 1 px (`selectionBorderWidth`), and the account-color strip is now inset by the border on the left, top, and bottom instead of only on the left, so it no longer paints over the border at the row's corners. The strip narrows by the border width while selected, keeping its right edge — and the row content — in place.
+
 ## [0.6.3] - 2026-11-24
 
 ### Changed
